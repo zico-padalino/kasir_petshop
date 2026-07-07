@@ -1,0 +1,16 @@
+# Konfigurasi Netlify untuk versi mobile (folder: mobile/)
+# File ini di ROOT repo agar Netlify otomatis mendeteksi pengaturan build.
+
+[build]
+  base = "mobile"
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# SPA fallback (React Router)
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
