@@ -1,0 +1,19 @@
+{
+  "name": "PetShop Dzikra E-POS",
+  "short_name": "Kasir Dzikra",
+  "description": "Sistem Kasir PetShop Dzikra - versi mobile",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f4f6f9",
+  "theme_color": "#17a2b8",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
