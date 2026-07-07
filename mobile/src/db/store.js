@@ -1,25 +1,21 @@
 // "Database" lokal berbasis localStorage (tersimpan di perangkat, untuk uji coba).
 // Meniru struktur tabel & logika controller pada versi Laravel.
 
-import { SEED } from './seed'
+import { buildSeed } from './seed'
 
-const DB_KEY = 'kasir_dzikra_db_v1'
-
-function clone(x) {
-  return JSON.parse(JSON.stringify(x))
-}
+const DB_KEY = 'kasir_dzikra_db_v2'
 
 function load() {
   const raw = localStorage.getItem(DB_KEY)
   if (!raw) {
-    const fresh = clone(SEED)
+    const fresh = buildSeed()
     localStorage.setItem(DB_KEY, JSON.stringify(fresh))
     return fresh
   }
   try {
     return JSON.parse(raw)
   } catch {
-    const fresh = clone(SEED)
+    const fresh = buildSeed()
     localStorage.setItem(DB_KEY, JSON.stringify(fresh))
     return fresh
   }
@@ -30,7 +26,7 @@ function save(db) {
 }
 
 export function resetDatabase() {
-  const fresh = clone(SEED)
+  const fresh = buildSeed()
   save(fresh)
   return fresh
 }

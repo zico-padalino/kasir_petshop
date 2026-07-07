@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { getUsers, getRoles, createUser, updateUser, deleteUser } from '../db/store'
+import { getUsers, getRoles, createUser, updateUser, deleteUser, resetDatabase } from '../db/store'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 
@@ -53,9 +53,23 @@ export default function Users() {
     return <span className="badge badge-warning">{name}</span>
   }
 
+  function handleReset() {
+    if (!confirm('Reset semua data ke data dummy awal? Semua transaksi & perubahan akan hilang.')) return
+    resetDatabase()
+    toast.success('Data berhasil di-reset ke data dummy awal.')
+    resetForm()
+    setReload((r) => r + 1)
+  }
+
   return (
     <>
-      <h1 className="page-title">Pengguna & Role Akses</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+        <h1 className="page-title" style={{ marginBottom: 0 }}>Pengguna & Role Akses</h1>
+        <button className="btn btn-outline btn-sm" onClick={handleReset} title="Kembalikan ke data dummy awal">
+          <i className="bi bi-arrow-counterclockwise"></i> Reset Data Uji Coba
+        </button>
+      </div>
+      <div style={{ height: 20 }} />
 
       <div className="side-form-grid" style={{ gridTemplateColumns: '1fr 380px' }}>
         <div className="card">
