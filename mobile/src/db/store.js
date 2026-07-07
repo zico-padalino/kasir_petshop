@@ -428,6 +428,57 @@ export function getReport({ dateFrom, dateTo } = {}) {
   }
 }
 
+/* ============ REKAPAN PEMBUKUAN (BUKU KAS) ============ */
+
+export function getBookkeeping({ dateFrom, dateTo } = {}) {
+  const db = load()
+
+  let rows = db.transactions.map((t) => ({
+    ...t,
+    cashier_name: db.users.find((u) => u.id === t.user_id)?.name ?? '-',
+  }))
+  if (dateFrom) rows = rows.filter((t) => dateOnly(t.created_at) >= dateFrom)
+  if (dateTo) rows = rows.filter((t) => dateOnly(t.created_at) <= dateTo)
+
+  // urut menaik (kronologis) seperti buku kas
+  rows.sort((a, b) => (a.created_at < b.created_at ? -1 : 1))
+
+  // jumlah item (qty) per transaksi
+  const qtyByTx = {}
+  db.transaction_items.forEach((i) => {
+    qtyByTx[i.transaction_id] = (qtyByTx[i.transaction_id] || 0) + i.qty
+  })
+
+  let saldo = 0
+  const entries = rows.map((t, i) => {
+    saldo += t.total
+    return { ...t, no: i + 1, item_qty: qtyByTx[t.id] || 0, saldo }
+  })
+
+  // kelompokkan per hari beserta subtotal
+  const groupMap = {}
+  entries.forEach((e) => {
+    const d = dateOnly(e.created_at)
+    if (!groupMap[d]) groupMap[d] = { date: d, entries: [], count: 0, subtotal: 0, discount: 0, revenue: 0 }
+    const g = groupMap[d]
+    g.entries.push(e)
+    g.count += 1
+    g.subtotal += e.subtotal
+    g.discount += e.discount
+    g.revenue += e.total
+  })
+  const days = Object.values(groupMap).sort((a, b) => (a.date < b.date ? -1 : 1))
+
+  const totals = {
+    count: entries.length,
+    subtotal: entries.reduce((s, e) => s + e.subtotal, 0),
+    discount: entries.reduce((s, e) => s + e.discount, 0),
+    revenue: entries.reduce((s, e) => s + e.total, 0),
+  }
+
+  return { entries, days, totals }
+}
+
 /* ============ USERS ============ */
 
 export function getRoles() {
