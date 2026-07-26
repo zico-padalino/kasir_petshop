@@ -1,0 +1,7 @@
+tunnel: GANTI_DENGAN_TUNNEL_ID
+credentials-file: C:/Users/USERNAME/.cloudflared/GANTI_DENGAN_TUNNEL_ID.json
+
+ingress:
+  - hostname: app.example.com
+    service: http://127.0.0.1:8900
+  - service: http_status:404

@@ -125,8 +125,8 @@ echo.
 if /I "%MODE%"=="Named" (
   "%CF%" tunnel run %TUNNEL_NAME%
 ) else (
-  REM Quick Tunnel: tidak butuh login / cert.pem
-  "%CF%" tunnel --no-autoupdate --protocol http2 --url %LOCAL_URL%
+  REM Flag global HARUS sebelum subcommand "tunnel"
+  "%CF%" --no-autoupdate tunnel --url %LOCAL_URL%
 )
 
 echo.

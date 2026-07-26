@@ -19,3 +19,9 @@ yarn-error.log
 /.vscode
 /tools/
 cloudflared.exe
+scripts/cloudflare/*.json
+scripts/cloudflare/config.yml
+!scripts/cloudflare/config.yml.example
+!scripts/cloudflare/README.md
+tools/tunnel-out.txt
+tools/tunnel-err.txt
