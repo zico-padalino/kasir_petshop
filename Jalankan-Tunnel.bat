@@ -1,47 +1,37 @@
 @echo off
 setlocal EnableExtensions
 chcp 65001 >nul
-title PetShop Dzikra - Cloudflare Tunnel
-color 0B
+title PetShop Dzikra - Tunnel HTTPS
+color 0A
 
 set "ROOT=%~dp0"
 set "MOBILE=%ROOT%mobile"
-set "MODE=Quick"
-set "LOCAL_URL=http://127.0.0.1:5173"
-set "TUNNEL_NAME=kasir-dzikra"
 set "DEV_TITLE=KasirDzikra-Vite"
-set "CF="
-set "LOG=%ROOT%tools\tunnel-log.txt"
+set "CF=%ROOT%tools\cloudflared.exe"
 set "URLFILE=%ROOT%tools\tunnel-url.txt"
-set "PS1=%ROOT%scripts\start-quick-tunnel.ps1"
-
-if /I "%~1"=="-Mode" if /I "%~2"=="Named" set "MODE=Named"
-if /I "%~1"=="Named" set "MODE=Named"
 
 set TUNNEL_TOKEN=
 set TUNNEL_ORIGIN_CERT=
 set TUNNEL_CREDENTIALS=
 set TUNNEL_CONFIG=
-set CLOUDFLARED_ORIGINCERT=
 
 cls
 echo ========================================
-echo PetShop Dzikra - Cloudflare Tunnel
+echo  PetShop Dzikra - Tunnel untuk Kamera
 echo ========================================
 echo.
-echo Mode : %MODE%
+echo Langkah:
+echo  1. Vite akan dinyalakan
+echo  2. Tunnel Cloudflare dijalankan DI JENDELA INI
+echo  3. Cari baris hijau "trycloudflare.com"
+echo  4. Salin URL itu, buka di HP
 echo.
-echo PENTING:
-echo   - Akan muncul URL seperti:
-echo     https://kata-acak-panjang.trycloudflare.com
-echo   - "xxxx-xxxx" hanya CONTOH, bukan URL asli
-echo   - Lihat jendela INI (bukan jendela Vite)
+echo Tekan Ctrl+C untuk stop.
 echo.
 
 if not exist "%MOBILE%\package.json" (
   color 0C
-  echo [ERROR] Folder mobile tidak ditemukan.
-  echo Jalankan dari folder project, jangan copy bat ke Desktop.
+  echo [ERROR] Folder mobile tidak ketemu.
   pause
   exit /b 1
 )
@@ -49,92 +39,54 @@ if not exist "%MOBILE%\package.json" (
 where node >nul 2>nul
 if errorlevel 1 (
   color 0C
-  echo [ERROR] Node.js belum terpasang.
+  echo [ERROR] Node.js belum ada.
   pause
   exit /b 1
 )
 
 if not exist "%ROOT%tools" mkdir "%ROOT%tools"
 
-if exist "%ROOT%tools\cloudflared.exe" (
-  set "CF=%ROOT%tools\cloudflared.exe"
-  goto :have_cf
+if not exist "%CF%" (
+  echo Mengunduh cloudflared...
+  powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -Uri 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe' -OutFile '%CF%' -UseBasicParsing"
 )
 
-where cloudflared >nul 2>nul
-if not errorlevel 1 (
-  for /f "delims=" %%i in ('where cloudflared') do (
-    set "CF=%%i"
-    goto :have_cf
-  )
-)
-
-echo [INFO] Mengunduh cloudflared...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -Uri 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe' -OutFile '%ROOT%tools\cloudflared.exe' -UseBasicParsing"
-if not exist "%ROOT%tools\cloudflared.exe" (
+if not exist "%CF%" (
   color 0C
-  echo [ERROR] Gagal unduh cloudflared.
+  echo [ERROR] cloudflared gagal diunduh.
+  echo.
+  echo CADANGAN - jalankan manual di terminal lain:
+  echo   cd /d "%MOBILE%"
+  echo   npm run dev
+  echo Lalu terminal baru:
+  echo   npx --yes localtunnel --port 5173
   pause
   exit /b 1
 )
-set "CF=%ROOT%tools\cloudflared.exe"
 
-:have_cf
 echo [OK] %CF%
 "%CF%" --version
 echo.
 
-pushd "%MOBILE%"
-if not exist "node_modules\" (
-  echo Menginstal npm...
-  call npm install
-  if errorlevel 1 (
-    color 0C
-    echo [ERROR] npm install gagal.
-    popd
-    pause
-    exit /b 1
-  )
-)
-popd
-
-echo Menyalakan Vite...
+echo Menyalakan Vite (jendela baru)...
 start "%DEV_TITLE%" /D "%MOBILE%" cmd /k "npm run dev"
-echo Menunggu 10 detik agar Vite siap...
-timeout /t 10 /nobreak >nul
+echo Tunggu 12 detik...
+timeout /t 12 /nobreak >nul
 
 echo.
 echo ========================================
-echo Menyalakan tunnel - JANGAN TUTUP jendela ini
+echo  TUNNEL MULAI - SCROLL KE BAWAH
+echo  Cari: https://....trycloudflare.com
 echo ========================================
 echo.
 
-if /I "%MODE%"=="Named" (
-  "%CF%" tunnel run %TUNNEL_NAME%
-) else (
-  powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Cloudflared "%CF%" -LocalUrl "%LOCAL_URL%" -LogFile "%LOG%" -UrlFile "%URLFILE%"
-)
+REM Langsung di console agar URL terlihat jelas (cara yang sudah berhasil diuji)
+"%CF%" --no-autoupdate tunnel --url http://127.0.0.1:5173
 
 echo.
-if exist "%URLFILE%" (
-  color 0A
-  echo.
-  echo ========== URL UNTUK HP ==========
-  type "%URLFILE%"
-  echo ==================================
-  echo File: %URLFILE%
-  echo.
-) else (
-  color 0C
-  echo [ERROR] URL tidak muncul.
-  echo Cek: %LOG%
-  echo.
-)
-
+echo Tunnel berhenti.
 echo Menghentikan Vite...
 taskkill /FI "WINDOWTITLE eq %DEV_TITLE*" /F >nul 2>nul
 for /f "tokens=5" %%p in ('netstat -ano ^| findstr ":5173" ^| findstr "LISTENING"') do taskkill /PID %%p /F >nul 2>nul
-
-echo Selesai.
 pause
 endlocal

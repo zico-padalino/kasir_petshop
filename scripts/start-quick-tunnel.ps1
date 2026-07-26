@@ -10,72 +10,80 @@ $ErrorActionPreference = 'Continue'
 
 if (Test-Path $UrlFile) { Remove-Item $UrlFile -Force -ErrorAction SilentlyContinue }
 if (Test-Path $LogFile) { Remove-Item $LogFile -Force -ErrorAction SilentlyContinue }
+New-Item -ItemType File -Path $LogFile -Force | Out-Null
 
-$psi = New-Object System.Diagnostics.ProcessStartInfo
-$psi.FileName = $Cloudflared
-$psi.Arguments = "--no-autoupdate tunnel --url $LocalUrl"
-$psi.UseShellExecute = $false
-$psi.RedirectStandardOutput = $true
-$psi.RedirectStandardError = $true
-$psi.CreateNoWindow = $true
-$psi.StandardOutputEncoding = [System.Text.Encoding]::UTF8
-$psi.StandardErrorEncoding = [System.Text.Encoding]::UTF8
+Write-Host 'Menjalankan cloudflared...' -ForegroundColor Cyan
+Write-Host "  $Cloudflared --no-autoupdate tunnel --url $LocalUrl"
+Write-Host ''
 
-$p = New-Object System.Diagnostics.Process
-$p.StartInfo = $psi
+$outLog = "$LogFile.out"
+$errLog = "$LogFile.err"
+Remove-Item $outLog, $errLog -Force -ErrorAction SilentlyContinue
 
-$found = $false
-$sync = [hashtable]::Synchronized(@{ Found = $false; Url = '' })
+$p = Start-Process -FilePath $Cloudflared `
+  -ArgumentList @('--no-autoupdate', 'tunnel', '--url', $LocalUrl) `
+  -RedirectStandardOutput $outLog `
+  -RedirectStandardError $errLog `
+  -NoNewWindow `
+  -PassThru
 
-$handler = {
-  if (-not $_.Data) { return }
-  $line = $_.Data
-  Add-Content -Path $LogFile -Value $line -Encoding UTF8
-  Write-Host $line
-  if (-not $sync.Found -and $line -match 'https://[a-z0-9-]+\.trycloudflare\.com') {
-    $u = $Matches[0]
-    $sync.Found = $true
-    $sync.Url = $u
-    Set-Content -Path $UrlFile -Value $u -Encoding UTF8
-    try { Set-Clipboard -Value $u } catch {}
-    Write-Host ''
-    Write-Host '========================================' -ForegroundColor Green
-    Write-Host '  URL SIAP (sudah di-copy ke clipboard)' -ForegroundColor Green
-    Write-Host ("  $u") -ForegroundColor Yellow
-    Write-Host '  Tempel URL itu di browser HP' -ForegroundColor Green
-    Write-Host ("  Juga disimpan di: $UrlFile") -ForegroundColor Cyan
-    Write-Host '========================================' -ForegroundColor Green
-    Write-Host ''
+Write-Host 'Menunggu URL dari Cloudflare (maks 90 detik)...' -ForegroundColor Cyan
+
+$url = $null
+$deadline = (Get-Date).AddSeconds(90)
+
+while ((Get-Date) -lt $deadline) {
+  if ($p.HasExited) { break }
+
+  Start-Sleep -Seconds 2
+
+  $chunk = @()
+  if (Test-Path $errLog) { $chunk += Get-Content $errLog -ErrorAction SilentlyContinue }
+  if (Test-Path $outLog) { $chunk += Get-Content $outLog -ErrorAction SilentlyContinue }
+
+  # tampilkan baris baru ke layar
+  $chunk | Select-Object -Last 8 | ForEach-Object { Write-Host $_ }
+
+  $joined = ($chunk -join "`n")
+  if ($joined -match 'https://[a-z0-9-]+\.trycloudflare\.com') {
+    $url = $Matches[0]
+    break
   }
 }
 
-Register-ObjectEvent -InputObject $p -EventName OutputDataReceived -Action $handler | Out-Null
-Register-ObjectEvent -InputObject $p -EventName ErrorDataReceived -Action $handler | Out-Null
+# gabungkan log
+$all = @()
+if (Test-Path $errLog) { $all += Get-Content $errLog -ErrorAction SilentlyContinue }
+if (Test-Path $outLog) { $all += Get-Content $outLog -ErrorAction SilentlyContinue }
+$all | Set-Content -Path $LogFile -Encoding UTF8
 
-[void]$p.Start()
-$p.BeginOutputReadLine()
-$p.BeginErrorReadLine()
-
-Write-Host 'Menunggu Cloudflare membuat URL (bisa 10-60 detik)...' -ForegroundColor Cyan
-
-$deadline = (Get-Date).AddMinutes(2)
-while (-not $p.HasExited -and (Get-Date) -lt $deadline) {
-  Start-Sleep -Milliseconds 500
-  if ($sync.Found) { break }
-}
-
-if (-not $sync.Found) {
-  Write-Host '[ERROR] URL belum muncul dalam 2 menit.' -ForegroundColor Red
-  Write-Host "Cek log: $LogFile" -ForegroundColor Red
-  Write-Host 'Pastikan internet aktif, matikan Cloudflare WARP jika ada.' -ForegroundColor Yellow
+if ($url) {
+  Set-Content -Path $UrlFile -Value $url -Encoding UTF8
+  try { Set-Clipboard -Value $url } catch {}
+  Write-Host ''
+  Write-Host '========================================' -ForegroundColor Green
+  Write-Host '  URL SIAP (sudah di-copy)' -ForegroundColor Green
+  Write-Host "  $url" -ForegroundColor Yellow
+  Write-Host '  Buka di HP sekarang' -ForegroundColor Green
+  Write-Host "  File: $UrlFile" -ForegroundColor Cyan
+  Write-Host '========================================' -ForegroundColor Green
+  Write-Host ''
+  Write-Host 'Tunnel tetap jalan. Tutup jendela ini untuk stop.' -ForegroundColor Cyan
+  try { Wait-Process -Id $p.Id } catch {}
+} else {
+  Write-Host ''
+  Write-Host '[ERROR] Cloudflare tidak memberi URL.' -ForegroundColor Red
+  Write-Host "Log: $LogFile" -ForegroundColor Yellow
+  if ($all.Count -gt 0) {
+    Write-Host '--- isi log ---' -ForegroundColor DarkGray
+    $all | Select-Object -Last 20 | ForEach-Object { Write-Host $_ -ForegroundColor DarkGray }
+  }
+  if (-not $p.HasExited) {
+    try { Stop-Process -Id $p.Id -Force } catch {}
+  }
+  exit 1
 }
 
 if (-not $p.HasExited) {
-  Write-Host 'Tunnel berjalan. Tutup jendela / Ctrl+C untuk stop.' -ForegroundColor Cyan
-  try { $p.WaitForExit() } catch {}
-}
-
-Get-EventSubscriber | Where-Object { $_.SourceObject -eq $p } | Unregister-Event -Force -ErrorAction SilentlyContinue
-if (-not $p.HasExited) {
-  try { $p.Kill() } catch {}
+  try { Stop-Process -Id $p.Id -Force } catch {}
 }
