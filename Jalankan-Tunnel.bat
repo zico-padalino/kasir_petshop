@@ -15,6 +15,13 @@ set "CF="
 if /I "%~1"=="-Mode" if /I "%~2"=="Named" set "MODE=Named"
 if /I "%~1"=="Named" set "MODE=Named"
 
+REM Hapus env yang bikin quick tunnel mencari cert.pem
+set TUNNEL_TOKEN=
+set TUNNEL_ORIGIN_CERT=
+set TUNNEL_CREDENTIALS=
+set TUNNEL_CONFIG=
+set CLOUDFLARED_ORIGINCERT=
+
 cls
 echo =================================
 echo PetShop Dzikra - Cloudflare Tunnel
@@ -24,10 +31,6 @@ echo Quick tunnel: double-klik file ini.
 echo Named tunnel: Jalankan-Tunnel.bat -Mode Named
 echo Pastikan Node.js sudah terpasang.
 echo Tekan Ctrl+C untuk stop tunnel dan server.
-echo.
-echo =================================
-echo PetShop Dzikra - Cloudflare Tunnel
-echo =================================
 echo.
 echo Mode: %MODE%
 echo Root: %ROOT%
@@ -55,17 +58,18 @@ if errorlevel 1 (
   exit /b 1
 )
 
+REM Utamakan cloudflared di folder tools proyek (lebih stabil untuk quick tunnel)
+if exist "%ROOT%tools\cloudflared.exe" (
+  set "CF=%ROOT%tools\cloudflared.exe"
+  goto :have_cf
+)
+
 where cloudflared >nul 2>nul
 if not errorlevel 1 (
   for /f "delims=" %%i in ('where cloudflared') do (
     set "CF=%%i"
     goto :have_cf
   )
-)
-
-if exist "%ROOT%tools\cloudflared.exe" (
-  set "CF=%ROOT%tools\cloudflared.exe"
-  goto :have_cf
 )
 
 echo [INFO] Mengunduh cloudflared...
@@ -81,6 +85,8 @@ set "CF=%ROOT%tools\cloudflared.exe"
 
 :have_cf
 echo [OK] cloudflared siap
+echo     %CF%
+"%CF%" --version
 echo.
 
 pushd "%MOBILE%"
@@ -116,16 +122,25 @@ echo PetShop Dzikra - Cloudflare Tunnel
 echo =================================
 echo.
 
-set "TUNNEL_TOKEN="
-set "TUNNEL_ORIGIN_CERT="
-
 if /I "%MODE%"=="Named" (
   "%CF%" tunnel run %TUNNEL_NAME%
 ) else (
-  "%CF%" tunnel --no-autoupdate --url %LOCAL_URL%
+  REM Quick Tunnel: tidak butuh login / cert.pem
+  "%CF%" tunnel --no-autoupdate --protocol http2 --url %LOCAL_URL%
 )
 
 echo.
+if errorlevel 1 (
+  color 0C
+  echo [ERROR] Tunnel gagal.
+  echo.
+  echo Coba langkah ini:
+  echo   1. Pastikan internet PC aktif
+  echo   2. Tutup Cloudflare WARP jika terpasang
+  echo   3. Jalankan ulang Jalankan-Tunnel.bat
+  echo.
+)
+
 echo Menghentikan server lokal...
 taskkill /FI "WINDOWTITLE eq %DEV_TITLE*" /F >nul 2>nul
 for /f "tokens=5" %%p in ('netstat -ano ^| findstr ":5173" ^| findstr "LISTENING"') do taskkill /PID %%p /F >nul 2>nul
