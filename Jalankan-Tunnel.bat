@@ -104,7 +104,12 @@ timeout /t 10 /nobreak >nul
 
 echo.
 echo Menyalakan Cloudflare Tunnel...
-echo URL publik akan muncul di bawah.
+echo URL publik akan muncul di bawah (https://....trycloudflare.com).
+echo.
+echo PENTING untuk kamera HP:
+echo   - Buka URL HTTPS dari tunnel di HP (Chrome / Safari)
+echo   - Jangan pakai http://IP:5173 — browser akan blokir kamera
+echo   - Izinkan akses kamera saat diminta
 echo.
 echo =================================
 echo PetShop Dzikra - Cloudflare Tunnel

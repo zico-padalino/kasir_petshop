@@ -165,6 +165,16 @@ export default function Pos() {
         Scan barcode / SKU, atau ketuk barang — lalu bayar
       </p>
 
+      {!window.isSecureContext && (
+        <div className="alert-custom alert-danger" style={{ marginBottom: 12 }}>
+          <div className="alert-body">
+            <strong>Kamera tidak bisa dipakai di HTTP</strong>
+            Buka URL HTTPS dari Cloudflare Tunnel (<code>Jalankan-Tunnel.bat</code>),
+            bukan <code>http://IP:5173</code>. Browser HP memblokir kamera di koneksi tidak aman.
+          </div>
+        </div>
+      )}
+
       <form className="scan-bar" onSubmit={submitScan}>
         <div className="scan-bar-icon"><i className="bi bi-upc-scan"></i></div>
         <input
@@ -184,7 +194,8 @@ export default function Pos() {
           type="button"
           className="btn btn-outline btn-sm"
           onClick={() => setCameraOpen(true)}
-          title="Scan dengan kamera"
+          title="Scan dengan kamera (butuh HTTPS)"
+          disabled={!window.isSecureContext}
         >
           <i className="bi bi-camera"></i> Kamera
         </button>
