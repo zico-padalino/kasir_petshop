@@ -11,11 +11,13 @@ set "LOCAL_URL=http://127.0.0.1:5173"
 set "TUNNEL_NAME=kasir-dzikra"
 set "DEV_TITLE=KasirDzikra-Vite"
 set "CF="
+set "LOG=%ROOT%tools\tunnel-log.txt"
+set "URLFILE=%ROOT%tools\tunnel-url.txt"
+set "PS1=%ROOT%scripts\start-quick-tunnel.ps1"
 
 if /I "%~1"=="-Mode" if /I "%~2"=="Named" set "MODE=Named"
 if /I "%~1"=="Named" set "MODE=Named"
 
-REM Hapus env yang bikin quick tunnel mencari cert.pem
 set TUNNEL_TOKEN=
 set TUNNEL_ORIGIN_CERT=
 set TUNNEL_CREDENTIALS=
@@ -23,29 +25,23 @@ set TUNNEL_CONFIG=
 set CLOUDFLARED_ORIGINCERT=
 
 cls
-echo =================================
+echo ========================================
 echo PetShop Dzikra - Cloudflare Tunnel
-echo =================================
+echo ========================================
 echo.
-echo Quick tunnel: double-klik file ini.
-echo Named tunnel: Jalankan-Tunnel.bat -Mode Named
-echo Pastikan Node.js sudah terpasang.
-echo Tekan Ctrl+C untuk stop tunnel dan server.
+echo Mode : %MODE%
 echo.
-echo Mode: %MODE%
-echo Root: %ROOT%
+echo PENTING:
+echo   - Akan muncul URL seperti:
+echo     https://kata-acak-panjang.trycloudflare.com
+echo   - "xxxx-xxxx" hanya CONTOH, bukan URL asli
+echo   - Lihat jendela INI (bukan jendela Vite)
 echo.
 
 if not exist "%MOBILE%\package.json" (
   color 0C
   echo [ERROR] Folder mobile tidak ditemukan.
-  echo.
-  echo Jalankan file ini dari:
-  echo   D:\projek sampingan\kasir dzikra\Jalankan-Tunnel.bat
-  echo.
-  echo Jangan COPY bat ke Desktop.
-  echo Buat Shortcut: klik kanan - Send to - Desktop.
-  echo.
+  echo Jalankan dari folder project, jangan copy bat ke Desktop.
   pause
   exit /b 1
 )
@@ -53,12 +49,13 @@ if not exist "%MOBILE%\package.json" (
 where node >nul 2>nul
 if errorlevel 1 (
   color 0C
-  echo [ERROR] Node.js belum terpasang. Install dari https://nodejs.org
+  echo [ERROR] Node.js belum terpasang.
   pause
   exit /b 1
 )
 
-REM Utamakan cloudflared di folder tools proyek (lebih stabil untuk quick tunnel)
+if not exist "%ROOT%tools" mkdir "%ROOT%tools"
+
 if exist "%ROOT%tools\cloudflared.exe" (
   set "CF=%ROOT%tools\cloudflared.exe"
   goto :have_cf
@@ -73,7 +70,6 @@ if not errorlevel 1 (
 )
 
 echo [INFO] Mengunduh cloudflared...
-if not exist "%ROOT%tools" mkdir "%ROOT%tools"
 powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -Uri 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe' -OutFile '%ROOT%tools\cloudflared.exe' -UseBasicParsing"
 if not exist "%ROOT%tools\cloudflared.exe" (
   color 0C
@@ -84,8 +80,7 @@ if not exist "%ROOT%tools\cloudflared.exe" (
 set "CF=%ROOT%tools\cloudflared.exe"
 
 :have_cf
-echo [OK] cloudflared siap
-echo     %CF%
+echo [OK] %CF%
 "%CF%" --version
 echo.
 
@@ -103,45 +98,40 @@ if not exist "node_modules\" (
 )
 popd
 
-echo Menyalakan server lokal...
+echo Menyalakan Vite...
 start "%DEV_TITLE%" /D "%MOBILE%" cmd /k "npm run dev"
 echo Menunggu 10 detik agar Vite siap...
 timeout /t 10 /nobreak >nul
 
 echo.
-echo Menyalakan Cloudflare Tunnel...
-echo URL publik akan muncul di bawah (https://....trycloudflare.com).
-echo.
-echo PENTING untuk kamera HP:
-echo   - Buka URL HTTPS dari tunnel di HP (Chrome / Safari)
-echo   - Jangan pakai http://IP:5173 — browser akan blokir kamera
-echo   - Izinkan akses kamera saat diminta
-echo.
-echo =================================
-echo PetShop Dzikra - Cloudflare Tunnel
-echo =================================
+echo ========================================
+echo Menyalakan tunnel - JANGAN TUTUP jendela ini
+echo ========================================
 echo.
 
 if /I "%MODE%"=="Named" (
   "%CF%" tunnel run %TUNNEL_NAME%
 ) else (
-  REM Flag global HARUS sebelum subcommand "tunnel"
-  "%CF%" --no-autoupdate tunnel --url %LOCAL_URL%
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Cloudflared "%CF%" -LocalUrl "%LOCAL_URL%" -LogFile "%LOG%" -UrlFile "%URLFILE%"
 )
 
 echo.
-if errorlevel 1 (
-  color 0C
-  echo [ERROR] Tunnel gagal.
+if exist "%URLFILE%" (
+  color 0A
   echo.
-  echo Coba langkah ini:
-  echo   1. Pastikan internet PC aktif
-  echo   2. Tutup Cloudflare WARP jika terpasang
-  echo   3. Jalankan ulang Jalankan-Tunnel.bat
+  echo ========== URL UNTUK HP ==========
+  type "%URLFILE%"
+  echo ==================================
+  echo File: %URLFILE%
+  echo.
+) else (
+  color 0C
+  echo [ERROR] URL tidak muncul.
+  echo Cek: %LOG%
   echo.
 )
 
-echo Menghentikan server lokal...
+echo Menghentikan Vite...
 taskkill /FI "WINDOWTITLE eq %DEV_TITLE*" /F >nul 2>nul
 for /f "tokens=5" %%p in ('netstat -ano ^| findstr ":5173" ^| findstr "LISTENING"') do taskkill /PID %%p /F >nul 2>nul
 
