@@ -1,0 +1,4 @@
+# Dipakai jika Root directory Cloudflare Pages = "mobile"
+name = "kasir-dzikra-mobile"
+compatibility_date = "2025-07-26"
+pages_build_output_dir = "dist"
