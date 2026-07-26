@@ -2,12 +2,19 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
+const DEMOS = [
+  { label: 'Admin (semua fitur)', email: 'admin@petshop.com', emoji: '👑' },
+  { label: 'Kasir (jual & titip)', email: 'kasir@petshop.com', emoji: '🛒' },
+  { label: 'Owner (lihat laporan)', email: 'owner@petshop.com', emoji: '📊' },
+]
+
 export default function Login() {
   const { user, signIn } = useAuth()
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [showPass, setShowPass] = useState(false)
 
   useEffect(() => {
     if (user) navigate('/dashboard', { replace: true })
@@ -16,11 +23,17 @@ export default function Login() {
   function handleSubmit(e) {
     e.preventDefault()
     const res = signIn(email, password)
-    if (res.ok) {
-      navigate('/dashboard', { replace: true })
-    } else {
-      setError(res.message)
-    }
+    if (res.ok) navigate('/dashboard', { replace: true })
+    else setError(res.message)
+  }
+
+  function quickLogin(demoEmail) {
+    setEmail(demoEmail)
+    setPassword('password')
+    setError('')
+    const res = signIn(demoEmail, 'password')
+    if (res.ok) navigate('/dashboard', { replace: true })
+    else setError(res.message)
   }
 
   return (
@@ -28,52 +41,70 @@ export default function Login() {
       <div className="login-card">
         <div className="login-logo">
           <div className="logo">🐾</div>
-          <h2>PetShop E-POS</h2>
-          <p>Sistem Kasir Pet Shop</p>
+          <h2>PetShop Dzikra</h2>
+          <p>Kasir & penitipan hewan — mudah dipakai</p>
         </div>
 
         {error && (
           <div className="alert-custom alert-danger">
             <span className="alert-icon"><i className="bi bi-exclamation-circle-fill"></i></span>
-            <div className="alert-body"><strong>Gagal</strong> {error}</div>
+            <div className="alert-body"><strong>Gagal masuk</strong> {error}</div>
           </div>
         )}
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label className="form-label">Email</label>
+            <label className="form-label">Email akun</label>
             <input
               type="email"
               className="form-control"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@petshop.com"
+              placeholder="contoh: kasir@petshop.com"
               required
               autoFocus
             />
           </div>
           <div className="form-group">
-            <label className="form-label">Password</label>
-            <input
-              type="password"
-              className="form-control"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required
-            />
+            <label className="form-label">Kata sandi</label>
+            <div style={{ position: 'relative' }}>
+              <input
+                type={showPass ? 'text' : 'password'}
+                className="form-control"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Masukkan kata sandi"
+                required
+                style={{ paddingRight: 44 }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPass((s) => !s)}
+                style={{
+                  position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
+                  border: 'none', background: 'none', color: '#888', cursor: 'pointer', fontSize: 16, padding: 4,
+                }}
+                aria-label="Tampilkan sandi"
+              >
+                <i className={`bi ${showPass ? 'bi-eye-slash' : 'bi-eye'}`}></i>
+              </button>
+            </div>
           </div>
-          <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: 12 }}>
-            <i className="bi bi-box-arrow-in-right"></i> Masuk
+          <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: 14, fontSize: 15 }}>
+            <i className="bi bi-box-arrow-in-right"></i> Masuk ke Toko
           </button>
         </form>
 
-        <div style={{ marginTop: 24, padding: 16, background: '#f8f9fa', borderRadius: 8, fontSize: 12, color: '#666' }}>
-          <strong>Demo Akun:</strong><br />
-          Admin: admin@petshop.com<br />
-          Kasir: kasir@petshop.com<br />
-          Owner: owner@petshop.com<br />
-          Password: <code>password</code>
+        <div className="login-quick">
+          <div className="login-quick-title">Coba cepat (uji coba)</div>
+          <p className="login-quick-hint">Ketuk salah satu — tidak perlu ketik email/sandi</p>
+          {DEMOS.map((d) => (
+            <button key={d.email} type="button" className="login-quick-btn" onClick={() => quickLogin(d.email)}>
+              <span>{d.emoji}</span>
+              <span>{d.label}</span>
+              <i className="bi bi-chevron-right"></i>
+            </button>
+          ))}
         </div>
       </div>
     </div>

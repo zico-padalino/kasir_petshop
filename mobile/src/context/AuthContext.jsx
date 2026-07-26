@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react'
-import { login as dbLogin } from '../db/store'
+import { login as dbLogin, logActivity } from '../db/store'
 
 const AuthContext = createContext(null)
 const SESSION_KEY = 'kasir_dzikra_session'
@@ -30,6 +30,14 @@ export function AuthProvider({ children }) {
   }
 
   function signOut() {
+    if (user) {
+      logActivity({
+        user,
+        action: 'logout',
+        module: 'auth',
+        description: `${user.name} keluar dari aplikasi`,
+      })
+    }
     setUser(null)
     localStorage.removeItem(SESSION_KEY)
   }

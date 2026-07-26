@@ -4,36 +4,39 @@ import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 
 const MENU = [
-  { group: 'Menu', items: [{ to: '/dashboard', icon: 'bi-speedometer2', label: 'Dashboard', roles: ['admin', 'kasir', 'owner'] }] },
+  { group: 'Utama', items: [{ to: '/dashboard', icon: 'bi-house-door', label: 'Beranda', roles: ['admin', 'kasir', 'owner'] }] },
   {
-    group: 'Transaksi',
+    group: 'Toko',
     items: [
-      { to: '/pos', icon: 'bi-cart3', label: 'Kasir / POS', roles: ['admin', 'kasir', 'owner'] },
-      { to: '/transactions', icon: 'bi-receipt', label: 'Riwayat Transaksi', roles: ['admin', 'kasir', 'owner'] },
+      { to: '/pos', icon: 'bi-cart3', label: 'Jual Barang', roles: ['admin', 'kasir', 'owner'] },
+      { to: '/transactions', icon: 'bi-receipt', label: 'Riwayat Jual', roles: ['admin', 'kasir', 'owner'] },
+      { to: '/pet-hotel', icon: 'bi-house-heart', label: 'Titip Hewan', roles: ['admin', 'kasir', 'owner'] },
     ],
   },
   {
-    group: 'Inventory',
+    group: 'Barang & Laporan',
     items: [
-      { to: '/products', icon: 'bi-box-seam', label: 'Produk', roles: ['admin', 'owner'] },
-      { to: '/reports', icon: 'bi-bar-chart', label: 'Laporan Penjualan', roles: ['admin', 'owner'] },
+      { to: '/products', icon: 'bi-box-seam', label: 'Stok Barang', roles: ['admin', 'owner'] },
+      { to: '/stock-opname', icon: 'bi-clipboard-check', label: 'Stok Opname', roles: ['admin', 'owner'] },
+      { to: '/reports', icon: 'bi-bar-chart', label: 'Laporan Uang', roles: ['admin', 'owner'] },
+      { to: '/activity-logs', icon: 'bi-journal-text', label: 'Log Aktivitas', roles: ['owner'] },
     ],
   },
   {
-    group: 'Manajemen',
+    group: 'Pengaturan',
     items: [
-      { to: '/categories', icon: 'bi-tags', label: 'Kategori', roles: ['admin'] },
-      { to: '/users', icon: 'bi-people', label: 'Pengguna & Role', roles: ['admin'] },
+      { to: '/categories', icon: 'bi-tags', label: 'Kategori Barang', roles: ['admin'] },
+      { to: '/users', icon: 'bi-people', label: 'Pengguna', roles: ['admin'] },
     ],
   },
 ]
 
 const BOTTOM = [
-  { to: '/dashboard', icon: 'bi-speedometer2', label: 'Home', roles: ['admin', 'kasir', 'owner'] },
-  { to: '/pos', icon: 'bi-cart3', label: 'Kasir', roles: ['admin', 'kasir', 'owner'] },
+  { to: '/dashboard', icon: 'bi-house-door', label: 'Beranda', roles: ['admin', 'kasir', 'owner'] },
+  { to: '/pos', icon: 'bi-cart3', label: 'Jual', roles: ['admin', 'kasir', 'owner'] },
+  { to: '/pet-hotel', icon: 'bi-house-heart', label: 'Titip', roles: ['admin', 'kasir', 'owner'] },
   { to: '/transactions', icon: 'bi-receipt', label: 'Riwayat', roles: ['admin', 'kasir', 'owner'] },
-  { to: '/products', icon: 'bi-box-seam', label: 'Produk', roles: ['admin', 'owner'] },
-  { to: '/reports', icon: 'bi-bar-chart', label: 'Laporan', roles: ['admin', 'owner'] },
+  { to: '/products', icon: 'bi-box-seam', label: 'Stok', roles: ['admin', 'owner'] },
 ]
 
 export default function Layout() {
@@ -54,7 +57,7 @@ export default function Layout() {
       <aside className={`sidebar ${sidebarOpen ? 'show' : ''}`}>
         <div className="sidebar-brand">
           <div className="logo">🐾</div>
-          <div className="brand-text">PetShop<br />E-POS</div>
+          <div className="brand-text">PetShop<br />Dzikra</div>
         </div>
         <nav className="sidebar-menu">
           {MENU.map((section) => {
@@ -91,7 +94,7 @@ export default function Layout() {
           <div className="topbar-right">
             <div className="topbar-info">
               <strong>PetShop Dzikra</strong>
-              Sistem Kasir Elektronik
+              Toko & penitipan hewan
             </div>
             <div className="badge-role">
               <i className="bi bi-shield-check"></i>
@@ -126,7 +129,7 @@ export default function Layout() {
         </main>
 
         <footer className="footer">
-          &copy; {new Date().getFullYear()} PetShop E-POS — Versi Mobile
+          &copy; {new Date().getFullYear()} PetShop Dzikra — Mudah dipakai untuk toko hewan
         </footer>
       </div>
 

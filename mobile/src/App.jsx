@@ -14,6 +14,13 @@ import Products from './pages/Products'
 import ProductForm from './pages/ProductForm'
 import Categories from './pages/Categories'
 import Users from './pages/Users'
+import PetHotel from './pages/PetHotel'
+import PetHotelForm from './pages/PetHotelForm'
+import PetHotelDetail from './pages/PetHotelDetail'
+import PetHotelRooms from './pages/PetHotelRooms'
+import StockOpname from './pages/StockOpname'
+import StockOpnameDetail from './pages/StockOpnameDetail'
+import ActivityLogs from './pages/ActivityLogs'
 
 export default function App() {
   const { ready } = useAuth()
@@ -68,10 +75,75 @@ export default function App() {
         />
 
         <Route
+          path="/pet-hotel"
+          element={
+            <ProtectedRoute roles={['admin', 'kasir', 'owner']}>
+              <PetHotel />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/pet-hotel/create"
+          element={
+            <ProtectedRoute roles={['admin', 'kasir', 'owner']}>
+              <PetHotelForm />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/pet-hotel/rooms"
+          element={
+            <ProtectedRoute roles={['admin', 'kasir', 'owner']}>
+              <PetHotelRooms />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/pet-hotel/:id"
+          element={
+            <ProtectedRoute roles={['admin', 'kasir', 'owner']}>
+              <PetHotelDetail />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/pet-hotel/:id/edit"
+          element={
+            <ProtectedRoute roles={['admin', 'kasir', 'owner']}>
+              <PetHotelForm />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
           path="/reports"
           element={
             <ProtectedRoute roles={['admin', 'owner']}>
               <Reports />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/activity-logs"
+          element={
+            <ProtectedRoute roles={['owner']}>
+              <ActivityLogs />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/stock-opname"
+          element={
+            <ProtectedRoute roles={['admin', 'owner']}>
+              <StockOpname />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/stock-opname/:id"
+          element={
+            <ProtectedRoute roles={['admin', 'owner']}>
+              <StockOpnameDetail />
             </ProtectedRoute>
           }
         />

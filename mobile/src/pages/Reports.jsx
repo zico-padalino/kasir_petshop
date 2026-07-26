@@ -61,7 +61,7 @@ export default function Reports() {
       </div>
 
       <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-        <h1 className="page-title" style={{ marginBottom: 0 }}>Laporan Penjualan</h1>
+        <h1 className="page-title" style={{ marginBottom: 0 }}>Laporan Uang</h1>
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn btn-outline btn-sm" onClick={exportCsv}><i className="bi bi-filetype-csv"></i> Unduh CSV</button>
           <button className="btn btn-primary btn-sm" onClick={() => window.print()}><i className="bi bi-printer"></i> Cetak Rekap</button>

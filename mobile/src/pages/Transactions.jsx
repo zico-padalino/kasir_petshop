@@ -28,7 +28,7 @@ export default function Transactions() {
 
   return (
     <>
-      <h1 className="page-title">Riwayat Transaksi</h1>
+      <h1 className="page-title">Riwayat Jual</h1>
 
       <div className="stat-grid" style={{ gridTemplateColumns: '1fr 1fr', maxWidth: 500 }}>
         <div className="stat-card">

@@ -41,7 +41,7 @@ export default function Products() {
 
   return (
     <>
-      <h1 className="page-title">Daftar Produk</h1>
+      <h1 className="page-title">Stok Barang</h1>
 
       <div className="card">
         <div className="card-header">
@@ -52,7 +52,7 @@ export default function Products() {
         </div>
         <div className="card-body">
           <form className="search-bar" onSubmit={apply}>
-            <input type="text" className="form-control" placeholder="Cari nama atau SKU..." value={search} onChange={(e) => setSearch(e.target.value)} />
+            <input type="text" className="form-control" placeholder="Cari nama / SKU / barcode..." value={search} onChange={(e) => setSearch(e.target.value)} />
             <select className="form-control" style={{ maxWidth: 200 }} value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
               <option value="">Semua Kategori</option>
               {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -64,7 +64,7 @@ export default function Products() {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>SKU</th><th>Nama Produk</th><th>Kategori</th><th>Harga</th><th>Stok</th><th>Status</th>
+                  <th>SKU</th><th>Barcode</th><th>Nama Produk</th><th>Kategori</th><th>Harga</th><th>Stok</th><th>Status</th>
                   {isAdmin && <th>Aksi</th>}
                 </tr>
               </thead>
@@ -72,6 +72,7 @@ export default function Products() {
                 {products.length ? products.map((p) => (
                   <tr key={p.id}>
                     <td><code>{p.sku}</code></td>
+                    <td><code style={{ fontSize: 11 }}>{p.barcode || '—'}</code></td>
                     <td>{p.name}</td>
                     <td>{p.category_name}</td>
                     <td>{rupiah(p.price)}</td>

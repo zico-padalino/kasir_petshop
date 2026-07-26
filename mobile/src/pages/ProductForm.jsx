@@ -14,6 +14,7 @@ export default function ProductForm() {
   const [form, setForm] = useState(() => ({
     category_id: existing?.category_id ?? '',
     sku: existing?.sku ?? '',
+    barcode: existing?.barcode ?? '',
     price: existing?.price ?? 0,
     name: existing?.name ?? '',
     description: existing?.description ?? '',
@@ -65,9 +66,13 @@ export default function ProductForm() {
                 <input type="text" className="form-control" value={form.sku} onChange={(e) => set('sku', e.target.value)} placeholder="MK-006" required />
               </div>
               <div className="form-group">
-                <label className="form-label">Harga (Rp) *</label>
-                <input type="number" className="form-control" value={form.price} onChange={(e) => set('price', e.target.value)} min="0" required />
+                <label className="form-label">Barcode</label>
+                <input type="text" className="form-control" value={form.barcode} onChange={(e) => set('barcode', e.target.value)} placeholder="8991001000001" />
               </div>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Harga (Rp) *</label>
+              <input type="number" className="form-control" value={form.price} onChange={(e) => set('price', e.target.value)} min="0" required />
             </div>
             <div className="form-group">
               <label className="form-label">Nama Produk *</label>

@@ -1,8 +1,10 @@
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useMemo, useEffect, useRef, lazy, Suspense } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getPosProducts, getCategories, checkout } from '../db/store'
+import { getPosProducts, getCategories, checkout, findProductByScan } from '../db/store'
 import { useAuth } from '../context/AuthContext'
 import { rupiah, formatRupiah } from '../utils/format'
+
+const BarcodeScanner = lazy(() => import('../components/BarcodeScanner'))
 
 function productIcon(categoryName = '') {
   const n = categoryName.toLowerCase()
@@ -11,6 +13,24 @@ function productIcon(categoryName = '') {
   if (n.includes('perawatan')) return '🧴'
   if (n.includes('mainan')) return '🎾'
   return '📦'
+}
+
+function beepOk() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)()
+    const o = ctx.createOscillator()
+    const g = ctx.createGain()
+    o.type = 'sine'
+    o.frequency.value = 880
+    g.gain.value = 0.08
+    o.connect(g)
+    g.connect(ctx.destination)
+    o.start()
+    setTimeout(() => {
+      o.stop()
+      ctx.close()
+    }, 80)
+  } catch { /* ignore */ }
 }
 
 export default function Pos() {
@@ -30,24 +50,57 @@ export default function Pos() {
   const [discount, setDiscount] = useState(0)
   const [checkoutOpen, setCheckoutOpen] = useState(false)
   const [success, setSuccess] = useState(null)
+  const [scanCode, setScanCode] = useState('')
+  const [scanMsg, setScanMsg] = useState(null)
+  const [cameraOpen, setCameraOpen] = useState(false)
   const cartRef = useRef(null)
+  const scanInputRef = useRef(null)
 
   const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0)
   const total = Math.max(0, subtotal - (Number(discount) || 0))
   const count = cart.reduce((s, i) => s + i.qty, 0)
 
-  function addToCart(p) {
+  function addToCart(p, { fromScan = false } = {}) {
+    let result = 'ok'
     setCart((prev) => {
       const existing = prev.find((i) => i.product_id === p.id)
       if (existing) {
         if (existing.qty >= p.stock) {
-          alert('Stok tidak cukup!')
+          result = 'stock'
           return prev
         }
         return prev.map((i) => (i.product_id === p.id ? { ...i, qty: i.qty + 1 } : i))
       }
       return [...prev, { product_id: p.id, name: p.name, price: p.price, stock: p.stock, qty: 1 }]
     })
+    if (result === 'stock') {
+      setScanMsg({ type: 'err', text: `Stok "${p.name}" tidak cukup` })
+      return false
+    }
+    if (fromScan) {
+      beepOk()
+      setScanMsg({ type: 'ok', text: `+ ${p.name}` })
+    }
+    return true
+  }
+
+  function handleScan(raw) {
+    const code = String(raw || '').trim()
+    if (!code) return
+    const res = findProductByScan(code)
+    if (!res.ok) {
+      setScanMsg({ type: 'err', text: res.message })
+      return
+    }
+    addToCart(res.product, { fromScan: true })
+    setScanCode('')
+    // fokus kembali untuk scanner USB berikutnya
+    requestAnimationFrame(() => scanInputRef.current?.focus())
+  }
+
+  function submitScan(e) {
+    e.preventDefault()
+    handleScan(scanCode)
   }
 
   function changeQty(id, delta) {
@@ -76,14 +129,25 @@ export default function Pos() {
   }
 
   useEffect(() => {
+    if (!scanMsg) return
+    const t = setTimeout(() => setScanMsg(null), 2200)
+    return () => clearTimeout(t)
+  }, [scanMsg])
+
+  useEffect(() => {
     function onKey(e) {
       if (e.key === 'F2' && cart.length) {
         e.preventDefault()
         setCheckoutOpen(true)
       }
+      if (e.key === 'F3') {
+        e.preventDefault()
+        scanInputRef.current?.focus()
+      }
       if (e.key === 'Escape') {
         setCheckoutOpen(false)
         setSuccess(null)
+        setCameraOpen(false)
       }
     }
     window.addEventListener('keydown', onKey)
@@ -96,7 +160,42 @@ export default function Pos() {
 
   return (
     <>
-      <h1 className="page-title">Kasir / POS</h1>
+      <h1 className="page-title">Jual Barang</h1>
+      <p style={{ margin: '-12px 0 16px', color: '#666', fontSize: 13 }}>
+        Scan barcode / SKU, atau ketuk barang — lalu bayar
+      </p>
+
+      <form className="scan-bar" onSubmit={submitScan}>
+        <div className="scan-bar-icon"><i className="bi bi-upc-scan"></i></div>
+        <input
+          ref={scanInputRef}
+          type="text"
+          className="form-control scan-input"
+          placeholder="Scan barcode / ketik SKU lalu Enter (F3)"
+          value={scanCode}
+          onChange={(e) => setScanCode(e.target.value)}
+          autoComplete="off"
+          inputMode="text"
+        />
+        <button type="submit" className="btn btn-primary btn-sm" disabled={!scanCode.trim()}>
+          Tambah
+        </button>
+        <button
+          type="button"
+          className="btn btn-outline btn-sm"
+          onClick={() => setCameraOpen(true)}
+          title="Scan dengan kamera"
+        >
+          <i className="bi bi-camera"></i> Kamera
+        </button>
+      </form>
+
+      {scanMsg && (
+        <div className={`scan-feedback ${scanMsg.type === 'ok' ? 'ok' : 'err'}`}>
+          {scanMsg.type === 'ok' ? <i className="bi bi-check-circle-fill"></i> : <i className="bi bi-exclamation-circle-fill"></i>}
+          {scanMsg.text}
+        </div>
+      )}
 
       <div className="pos-layout">
         <div>
@@ -117,7 +216,7 @@ export default function Pos() {
             <input
               type="text"
               className="form-control"
-              placeholder="Cari produk / SKU..."
+              placeholder="Cari nama / SKU / barcode..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -151,7 +250,8 @@ export default function Pos() {
           <div className="cart-items">
             {cart.length === 0 ? (
               <div className="empty-state" style={{ padding: 20 }}>
-                <i className="bi bi-cart"></i>Keranjang kosong<br /><small>Klik produk untuk menambahkan</small>
+                <i className="bi bi-cart"></i>Keranjang kosong<br />
+                <small>Scan barcode atau ketuk produk</small>
               </div>
             ) : (
               cart.map((item) => (
@@ -199,6 +299,21 @@ export default function Pos() {
         </button>
       )}
 
+      {cameraOpen && (
+        <Suspense fallback={
+          <div className="modal-overlay show">
+            <div className="modal-box" style={{ textAlign: 'center' }}>Memuat kamera...</div>
+          </div>
+        }>
+          <BarcodeScanner
+            onClose={() => setCameraOpen(false)}
+            onScan={(code) => {
+              handleScan(code)
+            }}
+          />
+        </Suspense>
+      )}
+
       {checkoutOpen && (
         <CheckoutModal
           total={total}
@@ -234,6 +349,7 @@ export default function Pos() {
                   setCart([])
                   setDiscount(0)
                   setReloadKey((k) => k + 1)
+                  requestAnimationFrame(() => scanInputRef.current?.focus())
                 }}
               >
                 Transaksi Baru

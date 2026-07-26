@@ -42,10 +42,35 @@ const BASE = {
     { category_id: 4, sku: 'MN-003', name: 'Bone Karet Anjing', description: 'Tulang karet tahan gigit', price: 32000, stock: 28 },
     { category_id: 5, sku: 'KN-001', name: 'Kandang Anjing Medium', description: 'Kandang besi ukuran medium', price: 350000, stock: 5 },
     { category_id: 5, sku: 'KN-002', name: 'Aquarium 40cm', description: 'Aquarium kaca dengan filter', price: 280000, stock: 4 },
-  ].map((p, i) => ({ id: i + 1, is_active: 1, ...p })),
+  ].map((p, i) => ({
+    id: i + 1,
+    is_active: 1,
+    // barcode uji coba (EAN-13 fiktif) — bisa discan di kasir
+    barcode: `8991001${String(i + 1).padStart(6, '0')}`,
+    ...p,
+  })),
 
   transactions: [],
   transaction_items: [],
+
+  // Pet Hotel / Penitipan
+  hotel_rooms: [
+    { id: 1, code: 'A-01', name: 'Kamar Anjing Standar', pet_type: 'anjing', capacity: 1, price_per_day: 75000, is_active: 1, description: 'Kandang standar untuk anjing kecil–sedang' },
+    { id: 2, code: 'A-02', name: 'Kamar Anjing Premium', pet_type: 'anjing', capacity: 1, price_per_day: 120000, is_active: 1, description: 'Ruangan lebih luas + AC' },
+    { id: 3, code: 'A-03', name: 'Kamar Anjing Besar', pet_type: 'anjing', capacity: 1, price_per_day: 150000, is_active: 1, description: 'Untuk breed besar' },
+    { id: 4, code: 'K-01', name: 'Kamar Kucing Standar', pet_type: 'kucing', capacity: 1, price_per_day: 65000, is_active: 1, description: 'Kandang kucing standar' },
+    { id: 5, code: 'K-02', name: 'Kamar Kucing Premium', pet_type: 'kucing', capacity: 1, price_per_day: 100000, is_active: 1, description: 'Dengan tempat tidur & mainan' },
+    { id: 6, code: 'K-03', name: 'Suite Kucing Twin', pet_type: 'kucing', capacity: 2, price_per_day: 140000, is_active: 1, description: 'Untuk 2 kucing dari 1 pemilik' },
+    { id: 7, code: 'M-01', name: 'Kamar Multijenis', pet_type: 'semua', capacity: 1, price_per_day: 90000, is_active: 1, description: 'Anjing/kucing/kelinci kecil' },
+    { id: 8, code: 'M-02', name: 'Kamar Multijenis 2', pet_type: 'semua', capacity: 1, price_per_day: 90000, is_active: 1, description: 'Cadangan multijenis' },
+  ],
+
+  hotel_bookings: [],
+
+  stock_opnames: [],
+  stock_opname_items: [],
+
+  activity_logs: [],
 }
 
 /* ---------- util generator ---------- */
@@ -58,6 +83,129 @@ const pick = (arr) => arr[randInt(0, arr.length - 1)]
 const CUSTOMERS = [null, null, null, 'Budi Santoso', 'Siti Aminah', 'Andi Wijaya', 'Dewi Lestari', 'Rina Marlina', 'Joko Susilo', 'Maya Putri', 'Agus Salim']
 const METHODS = ['cash', 'cash', 'cash', 'cash', 'transfer', 'qris', 'qris']
 const NOTES = [null, null, null, 'Pelanggan tetap', 'Beli untuk hadiah', 'Minta bonus sample', 'Pesan via WA']
+
+const OWNER_NAMES = ['Budi Santoso', 'Siti Aminah', 'Andi Wijaya', 'Dewi Lestari', 'Rina Marlina', 'Joko Susilo', 'Maya Putri', 'Agus Salim', 'Fitri Handayani', 'Rudi Hartono']
+const OWNER_PHONES = ['081234567890', '081298765432', '082112223333', '085611122233', '087812345678', '081355566677']
+const PET_DOGS = [
+  { name: 'Bruno', breed: 'Golden Retriever' },
+  { name: 'Max', breed: 'Pomeranian' },
+  { name: 'Rocky', breed: 'Bulldog' },
+  { name: 'Coco', breed: 'Poodle' },
+  { name: 'Bella', breed: 'Shih Tzu' },
+]
+const PET_CATS = [
+  { name: 'Mochi', breed: 'Persia' },
+  { name: 'Luna', breed: 'Angora' },
+  { name: 'Oyen', breed: 'Kampung' },
+  { name: 'Milo', breed: 'British Shorthair' },
+  { name: 'Neko', breed: 'Ragdoll' },
+]
+const HOTEL_NOTES = [null, null, 'Bawa makanan sendiri', 'Alergi ayam', 'Pemalu, jangan digabung', 'Sudah vaksin lengkap', 'Suka main bola']
+
+function daysBetween(a, b) {
+  const d1 = new Date(a + 'T00:00:00')
+  const d2 = new Date(b + 'T00:00:00')
+  return Math.max(1, Math.round((d2 - d1) / 86400000))
+}
+
+function dateAdd(baseDate, days) {
+  const d = new Date(baseDate)
+  d.setDate(d.getDate() + days)
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+function generateHotelBookings(db) {
+  const now = new Date()
+  const rooms = db.hotel_rooms.filter((r) => r.is_active)
+  const bookings = []
+  let id = 1
+  const dayCounter = {}
+
+  // ~12 booking dummy: reserved, checked_in, checked_out
+  const plans = [
+    { status: 'checked_in', inOffset: -3, outOffset: 2 },
+    { status: 'checked_in', inOffset: -1, outOffset: 3 },
+    { status: 'checked_in', inOffset: 0, outOffset: 4 },
+    { status: 'reserved', inOffset: 1, outOffset: 4 },
+    { status: 'reserved', inOffset: 2, outOffset: 5 },
+    { status: 'reserved', inOffset: 3, outOffset: 6 },
+    { status: 'checked_out', inOffset: -10, outOffset: -7 },
+    { status: 'checked_out', inOffset: -8, outOffset: -5 },
+    { status: 'checked_out', inOffset: -6, outOffset: -3 },
+    { status: 'checked_out', inOffset: -12, outOffset: -9 },
+    { status: 'cancelled', inOffset: -4, outOffset: -1 },
+    { status: 'reserved', inOffset: 5, outOffset: 8 },
+  ]
+
+  // track room occupancy for active stays to avoid double-booking same room
+  const occupied = new Set()
+
+  for (const plan of plans) {
+    const check_in_date = dateAdd(now, plan.inOffset)
+    const check_out_date = dateAdd(now, plan.outOffset)
+    const days = daysBetween(check_in_date, check_out_date)
+
+    let room = pick(rooms)
+    if (plan.status === 'checked_in' || plan.status === 'reserved') {
+      const free = rooms.filter((r) => !occupied.has(r.id))
+      if (free.length) room = pick(free)
+      occupied.add(room.id)
+    }
+
+    const petType = room.pet_type === 'semua' ? pick(['anjing', 'kucing']) : room.pet_type
+    const pet = pick(petType === 'anjing' ? PET_DOGS : PET_CATS)
+    const price_per_day = room.price_per_day
+    const extra_fee = Math.random() < 0.25 ? pick([15000, 25000, 50000]) : 0
+    const discount = Math.random() < 0.2 ? pick([10000, 20000]) : 0
+    const total = Math.max(0, days * price_per_day + extra_fee - discount)
+
+    const dayKey = check_in_date.replace(/-/g, '')
+    dayCounter[dayKey] = (dayCounter[dayKey] || 0) + 1
+    const booking_number = `PH-${dayKey}-${String(dayCounter[dayKey]).padStart(4, '0')}`
+
+    const created = new Date(check_in_date + 'T00:00:00')
+    created.setDate(created.getDate() - randInt(0, 3))
+    created.setHours(randInt(9, 17), randInt(0, 59), 0, 0)
+
+    let payment_status = 'unpaid'
+    if (plan.status === 'checked_out') payment_status = 'paid'
+    else if (plan.status === 'checked_in') payment_status = pick(['unpaid', 'partial', 'paid'])
+    else if (plan.status === 'reserved') payment_status = pick(['unpaid', 'unpaid', 'partial'])
+
+    bookings.push({
+      id: id++,
+      booking_number,
+      room_id: room.id,
+      owner_name: pick(OWNER_NAMES),
+      owner_phone: pick(OWNER_PHONES),
+      pet_name: pet.name,
+      pet_type: petType,
+      pet_breed: pet.breed,
+      pet_notes: pick(HOTEL_NOTES),
+      check_in_date,
+      check_out_date,
+      actual_check_in: plan.status === 'checked_in' || plan.status === 'checked_out'
+        ? `${check_in_date} ${pad(randInt(8, 11))}:${pad(randInt(0, 59))}:00`
+        : null,
+      actual_check_out: plan.status === 'checked_out'
+        ? `${check_out_date} ${pad(randInt(14, 18))}:${pad(randInt(0, 59))}:00`
+        : null,
+      days,
+      price_per_day,
+      extra_fee,
+      discount,
+      total,
+      status: plan.status,
+      payment_status,
+      payment_method: payment_status === 'paid' ? pick(METHODS) : null,
+      notes: plan.status === 'cancelled' ? 'Dibatalkan pemilik' : null,
+      user_id: pick(db.users).id,
+      created_at: fmtDate(created),
+    })
+  }
+
+  db.hotel_bookings = bookings
+}
 
 // Buat 1 transaksi acak pada tanggal tertentu; mengurangi stok produk (tidak negatif).
 function makeTransaction(products, users, date) {
@@ -155,7 +303,150 @@ export function buildSeed() {
     }
   }
 
+  generateHotelBookings(db)
+  generateStockOpnames(db)
+  generateActivityLogs(db)
   return db
+}
+
+function generateActivityLogs(db) {
+  const logs = []
+  let id = 1
+  const roleOf = (uid) => {
+    const u = db.users.find((x) => x.id === uid)
+    const role = db.roles.find((r) => r.id === u?.role_id)
+    return { name: u?.name || 'Sistem', slug: role?.slug || null, id: u?.id || null }
+  }
+
+  // login contoh
+  db.users.forEach((u) => {
+    const r = roleOf(u.id)
+    const d = new Date()
+    d.setDate(d.getDate() - randInt(0, 3))
+    d.setHours(randInt(8, 10), randInt(0, 59), 0, 0)
+    logs.push({
+      id: id++,
+      user_id: r.id,
+      user_name: r.name,
+      role_slug: r.slug,
+      action: 'login',
+      module: 'auth',
+      description: `${r.name} masuk ke aplikasi`,
+      meta: null,
+      created_at: fmtDate(d),
+    })
+  })
+
+  // penjualan dari transaksi (ambil 15 terakhir)
+  ;[...db.transactions]
+    .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
+    .slice(0, 15)
+    .forEach((t) => {
+      const r = roleOf(t.user_id)
+      logs.push({
+        id: id++,
+        user_id: r.id,
+        user_name: r.name,
+        role_slug: r.slug,
+        action: 'sale',
+        module: 'pos',
+        description: `${r.name} mencatat penjualan ${t.invoice_number} sebesar Rp ${Math.round(t.total).toLocaleString('id-ID')}`,
+        meta: { invoice_number: t.invoice_number, total: t.total },
+        created_at: t.created_at,
+      })
+    })
+
+  // hotel
+  db.hotel_bookings.slice(0, 8).forEach((b) => {
+    const r = roleOf(b.user_id)
+    const label =
+      b.status === 'checked_in'
+        ? `check-in ${b.pet_name}`
+        : b.status === 'checked_out'
+          ? `check-out ${b.pet_name}`
+          : b.status === 'cancelled'
+            ? `batalkan penitipan ${b.pet_name}`
+            : `buat reservasi ${b.pet_name}`
+    logs.push({
+      id: id++,
+      user_id: r.id,
+      user_name: r.name,
+      role_slug: r.slug,
+      action: b.status === 'checked_in' ? 'checkin' : b.status === 'checked_out' ? 'checkout' : b.status === 'cancelled' ? 'cancel' : 'create',
+      module: 'hotel',
+      description: `${r.name} ${label} (${b.booking_number})`,
+      meta: { booking_number: b.booking_number },
+      created_at: b.created_at,
+    })
+  })
+
+  // stok opname
+  db.stock_opnames.forEach((o) => {
+    const r = roleOf(o.user_id)
+    logs.push({
+      id: id++,
+      user_id: r.id,
+      user_name: r.name,
+      role_slug: r.slug,
+      action: o.status === 'completed' ? 'opname_complete' : 'opname_create',
+      module: 'stock_opname',
+      description: `${r.name} ${o.status === 'completed' ? 'menyelesaikan' : 'membuat'} stok opname ${o.opname_number}`,
+      meta: { opname_number: o.opname_number },
+      created_at: o.completed_at || o.created_at,
+    })
+  })
+
+  logs.sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
+  // re-id after sort
+  logs.forEach((l, i) => { l.id = i + 1 })
+  db.activity_logs = logs
+}
+
+function generateStockOpnames(db) {
+  const admin = db.users.find((u) => u.role_id === 1) || db.users[0]
+  const products = db.products.filter((p) => p.is_active).slice(0, 12)
+  if (!products.length) {
+    db.stock_opnames = []
+    db.stock_opname_items = []
+    return
+  }
+
+  const past = new Date()
+  past.setDate(past.getDate() - 7)
+  past.setHours(10, 30, 0, 0)
+
+  const dayKey = `${past.getFullYear()}${pad(past.getMonth() + 1)}${pad(past.getDate())}`
+  const opname = {
+    id: 1,
+    opname_number: `SO-${dayKey}-0001`,
+    status: 'completed',
+    notes: 'Stok opname mingguan (data contoh)',
+    user_id: admin.id,
+    created_at: fmtDate(past),
+    completed_at: fmtDate(past),
+  }
+
+  let itemId = 1
+  const items = products.map((p) => {
+    const system = p.stock
+    const delta = pick([0, 0, 0, 0, -1, -2, 1, 2])
+    const physical = Math.max(0, system + delta)
+    const difference = physical - system
+    return {
+      id: itemId++,
+      opname_id: 1,
+      product_id: p.id,
+      product_name: p.name,
+      sku: p.sku,
+      system_stock: system,
+      physical_stock: physical,
+      difference,
+      notes: difference < 0 ? 'Selisih kurang' : difference > 0 ? 'Selisih lebih' : null,
+    }
+  })
+
+  db.stock_opnames = [opname]
+  db.stock_opname_items = items
 }
 
 // SEED statis (master data tanpa transaksi) tetap diekspor bila diperlukan.
