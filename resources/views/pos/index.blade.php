@@ -66,8 +66,11 @@
                 <span>Subtotal</span><span id="subtotalDisplay">Rp 0</span>
             </div>
             <div class="form-group" style="margin-bottom:8px">
-                <label class="form-label" style="font-size:12px">Diskon (Rp)</label>
-                <input type="number" id="discountInput" class="form-control" value="0" min="0" oninput="updateTotal()">
+                <label class="form-label" style="font-size:12px">Diskon</label>
+                <div class="rupiah-field">
+                    <span class="rupiah-field-prefix">Rp</span>
+                    <input type="text" id="discountInput" class="form-control rupiah-field-input" value="" inputmode="numeric" autocomplete="off" oninput="updateTotal()">
+                </div>
             </div>
             <div class="cart-total">
                 <span>Total</span><span id="totalDisplay">Rp 0</span>
@@ -96,14 +99,17 @@
             </select>
         </div>
         <div class="form-group" id="cashGroup">
-            <label class="form-label">Uang Diterima (Rp)</label>
+            <label class="form-label">Uang Diterima</label>
             <div class="quick-cash">
                 <button type="button" onclick="setQuickCash(50000)">50rb</button>
                 <button type="button" onclick="setQuickCash(100000)">100rb</button>
                 <button type="button" onclick="setQuickCash(200000)">200rb</button>
                 <button type="button" onclick="setExactCash()">Pas</button>
             </div>
-            <input type="number" id="cashReceived" class="form-control" min="0" oninput="calcChange()">
+            <div class="rupiah-field">
+                <span class="rupiah-field-prefix">Rp</span>
+                <input type="text" id="cashReceived" class="form-control rupiah-field-input" value="" inputmode="numeric" autocomplete="off" oninput="calcChange()">
+            </div>
             <div style="margin-top:8px;font-size:14px">
                 Kembalian: <strong id="changeDisplay">Rp 0</strong>
             </div>
@@ -213,7 +219,7 @@ function renderCart() {
 function getSubtotal() { return cart.reduce((s, i) => s + (i.price * i.qty), 0); }
 
 function getTotal() {
-    const discount = parseFloat(document.getElementById('discountInput').value) || 0;
+    const discount = parseRupiah(document.getElementById('discountInput').value);
     return Math.max(0, getSubtotal() - discount);
 }
 
@@ -226,7 +232,7 @@ function updateTotal() {
 function openCheckout() {
     if (!cart.length) return;
     document.getElementById('checkoutModal').classList.add('show');
-    document.getElementById('cashReceived').value = Math.ceil(getTotal() / 1000) * 1000 || '';
+    setRupiahValue(document.getElementById('cashReceived'), Math.ceil(getTotal() / 1000) * 1000 || 0);
     calcChange();
     document.getElementById('customerName').focus();
 }
@@ -239,17 +245,17 @@ function toggleCashInput() {
 }
 
 function setQuickCash(amount) {
-    document.getElementById('cashReceived').value = amount;
+    setRupiahValue(document.getElementById('cashReceived'), amount);
     calcChange();
 }
 
 function setExactCash() {
-    document.getElementById('cashReceived').value = getTotal();
+    setRupiahValue(document.getElementById('cashReceived'), getTotal());
     calcChange();
 }
 
 function calcChange() {
-    const cash = parseFloat(document.getElementById('cashReceived').value) || 0;
+    const cash = parseRupiah(document.getElementById('cashReceived').value);
     document.getElementById('changeDisplay').textContent = formatRupiah(Math.max(0, cash - getTotal()));
 }
 
@@ -270,9 +276,9 @@ async function processCheckout() {
             },
             body: JSON.stringify({
                 items: cart.map(i => ({ product_id: i.product_id, qty: i.qty })),
-                discount: parseFloat(document.getElementById('discountInput').value) || 0,
+                discount: parseRupiah(document.getElementById('discountInput').value),
                 payment_method: paymentMethod,
-                cash_received: paymentMethod === 'cash' ? parseFloat(document.getElementById('cashReceived').value) : null,
+                cash_received: paymentMethod === 'cash' ? parseRupiah(document.getElementById('cashReceived').value) : null,
                 customer_name: document.getElementById('customerName').value,
                 notes: document.getElementById('notes').value,
             }),
@@ -309,9 +315,10 @@ function closeSuccess() {
     document.getElementById('successModal').classList.remove('show');
     cart = [];
     lastTransactionId = null;
-    document.getElementById('discountInput').value = 0;
+    document.getElementById('discountInput').value = '';
     document.getElementById('customerName').value = '';
     document.getElementById('notes').value = '';
+    setRupiahValue(document.getElementById('cashReceived'), 0);
     renderCart();
     location.reload();
 }

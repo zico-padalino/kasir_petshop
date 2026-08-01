@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { getPosProducts, getCategories, checkout, findProductByScan } from '../db/store'
 import { useAuth } from '../context/AuthContext'
 import { rupiah, formatRupiah } from '../utils/format'
+import RupiahInput from '../components/RupiahInput'
 
 const BarcodeScanner = lazy(() => import('../components/BarcodeScanner'))
 
@@ -288,8 +289,8 @@ export default function Pos() {
               <span>Subtotal</span><span>{rupiah(subtotal)}</span>
             </div>
             <div className="form-group" style={{ marginBottom: 8 }}>
-              <label className="form-label" style={{ fontSize: 12 }}>Diskon (Rp)</label>
-              <input type="number" className="form-control" value={discount} min="0" onChange={(e) => setDiscount(e.target.value)} />
+              <label className="form-label" style={{ fontSize: 12 }}>Diskon</label>
+              <RupiahInput value={discount} onChange={setDiscount} />
             </div>
             <div className="cart-total"><span>Total</span><span>{rupiah(total)}</span></div>
             <button
@@ -419,14 +420,14 @@ function CheckoutModal({ total, discount, cart, user, onClose, onSuccess }) {
         </div>
         {paymentMethod === 'cash' && (
           <div className="form-group">
-            <label className="form-label">Uang Diterima (Rp)</label>
+            <label className="form-label">Uang Diterima</label>
             <div className="quick-cash">
               <button type="button" onClick={() => setCashReceived(50000)}>50rb</button>
               <button type="button" onClick={() => setCashReceived(100000)}>100rb</button>
               <button type="button" onClick={() => setCashReceived(200000)}>200rb</button>
               <button type="button" onClick={() => setCashReceived(total)}>Pas</button>
             </div>
-            <input type="number" className="form-control" min="0" value={cashReceived} onChange={(e) => setCashReceived(e.target.value)} />
+            <RupiahInput value={cashReceived} onChange={setCashReceived} autoFocus />
             <div style={{ marginTop: 8, fontSize: 14 }}>Kembalian: <strong>{rupiah(change)}</strong></div>
           </div>
         )}

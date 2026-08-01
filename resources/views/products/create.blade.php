@@ -22,8 +22,12 @@
                     <input type="text" name="sku" class="form-control" value="{{ old('sku') }}" placeholder="MK-006" required>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Harga (Rp) *</label>
-                    <input type="number" name="price" class="form-control" value="{{ old('price', 0) }}" min="0" required>
+                    <label class="form-label">Harga *</label>
+                    <div class="rupiah-field">
+                        <span class="rupiah-field-prefix">Rp</span>
+                        <input type="text" class="form-control rupiah-field-input" data-rupiah-for="price" value="{{ old('price') !== null ? number_format((int) old('price', 0), 0, ',', '.') : '' }}" inputmode="numeric" autocomplete="off" required>
+                    </div>
+                    <input type="hidden" name="price" id="price" value="{{ old('price', 0) }}">
                 </div>
             </div>
             <div class="form-group">

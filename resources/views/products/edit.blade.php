@@ -21,8 +21,12 @@
                     <input type="text" name="sku" class="form-control" value="{{ $product->sku }}" required>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Harga (Rp) *</label>
-                    <input type="number" name="price" class="form-control" value="{{ $product->price }}" min="0" required>
+                    <label class="form-label">Harga *</label>
+                    <div class="rupiah-field">
+                        <span class="rupiah-field-prefix">Rp</span>
+                        <input type="text" class="form-control rupiah-field-input" data-rupiah-for="price" value="{{ number_format((int) $product->price, 0, ',', '.') }}" inputmode="numeric" autocomplete="off" required>
+                    </div>
+                    <input type="hidden" name="price" id="price" value="{{ $product->price }}">
                 </div>
             </div>
             <div class="form-group">

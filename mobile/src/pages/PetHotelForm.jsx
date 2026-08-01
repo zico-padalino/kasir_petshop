@@ -10,6 +10,7 @@ import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { rupiah, todayInput } from '../utils/format'
 import { RoomCard } from '../components/RoomCard'
+import RupiahInput from '../components/RupiahInput'
 
 function daysBetween(a, b) {
   if (!a || !b || b <= a) return 1
@@ -217,19 +218,19 @@ export default function PetHotelForm() {
 
             <div className="form-row">
               <div className="form-group">
-                <label className="form-label">Harga / Hari (Rp)</label>
-                <input type="number" className="form-control" min="0" value={form.price_per_day} onChange={(e) => set('price_per_day', e.target.value)} />
+                <label className="form-label">Harga / Hari</label>
+                <RupiahInput value={form.price_per_day} onChange={(v) => set('price_per_day', v)} />
               </div>
               <div className="form-group">
-                <label className="form-label">Biaya Tambahan (Rp)</label>
-                <input type="number" className="form-control" min="0" value={form.extra_fee} onChange={(e) => set('extra_fee', e.target.value)} />
+                <label className="form-label">Biaya Tambahan</label>
+                <RupiahInput value={form.extra_fee} onChange={(v) => set('extra_fee', v)} />
               </div>
             </div>
 
             <div className="form-row">
               <div className="form-group">
-                <label className="form-label">Diskon (Rp)</label>
-                <input type="number" className="form-control" min="0" value={form.discount} onChange={(e) => set('discount', e.target.value)} />
+                <label className="form-label">Diskon</label>
+                <RupiahInput value={form.discount} onChange={(v) => set('discount', v)} />
               </div>
               <div className="form-group">
                 <label className="form-label">Status Bayar</label>

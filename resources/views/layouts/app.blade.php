@@ -133,8 +133,46 @@
         }, 5000);
 
         function formatRupiah(n) {
-            return 'Rp ' + Number(n).toLocaleString('id-ID');
+            return 'Rp ' + Number(n || 0).toLocaleString('id-ID');
         }
+
+        function parseRupiah(str) {
+            const digits = String(str ?? '').replace(/\D/g, '');
+            return digits ? Number(digits) : 0;
+        }
+
+        function formatRupiahInput(n) {
+            const num = Math.round(Number(n) || 0);
+            if (!num) return '';
+            return num.toLocaleString('id-ID');
+        }
+
+        function setRupiahValue(inputEl, amount) {
+            if (!inputEl) return;
+            inputEl.value = formatRupiahInput(amount);
+            const hiddenId = inputEl.dataset.rupiahFor;
+            if (hiddenId) {
+                const hidden = document.getElementById(hiddenId);
+                if (hidden) hidden.value = parseRupiah(inputEl.value);
+            }
+            inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+
+        document.addEventListener('input', (e) => {
+            const el = e.target;
+            if (!el.classList?.contains('rupiah-field-input')) return;
+            const raw = parseRupiah(el.value);
+            el.value = formatRupiahInput(raw);
+            const hiddenId = el.dataset.rupiahFor;
+            if (hiddenId) {
+                const hidden = document.getElementById(hiddenId);
+                if (hidden) hidden.value = raw;
+            }
+        });
+
+        document.addEventListener('focusin', (e) => {
+            if (e.target.classList?.contains('rupiah-field-input')) e.target.select();
+        });
     </script>
     @stack('scripts')
 </body>

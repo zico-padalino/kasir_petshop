@@ -9,6 +9,7 @@ import {
 import { useToast } from '../context/ToastContext'
 import { useAuth } from '../context/AuthContext'
 import { RoomCard } from '../components/RoomCard'
+import RupiahInput from '../components/RupiahInput'
 
 const EMPTY = {
   code: '',
@@ -149,8 +150,8 @@ export default function PetHotelRooms() {
                   </select>
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Harga/Hari (Rp) *</label>
-                  <input type="number" className="form-control" min="0" value={form.price_per_day} onChange={(e) => set('price_per_day', e.target.value)} required />
+                  <label className="form-label">Harga/Hari *</label>
+                  <RupiahInput value={form.price_per_day} onChange={(v) => set('price_per_day', v)} required />
                 </div>
               </div>
               <div className="form-row">

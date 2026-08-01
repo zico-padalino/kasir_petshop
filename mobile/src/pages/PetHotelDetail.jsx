@@ -8,6 +8,7 @@ import {
 } from '../db/store'
 import { useToast } from '../context/ToastContext'
 import { rupiah, dateShort, dateTimeShort } from '../utils/format'
+import RupiahInput from '../components/RupiahInput'
 
 const STATUS_BADGE = {
   reserved: 'badge-info',
@@ -185,8 +186,8 @@ export default function PetHotelDetail() {
             <h3 style={{ marginTop: 0 }}><i className="bi bi-box-arrow-right"></i> Check-out {b.pet_name}</h3>
             <p style={{ color: '#666', fontSize: 13 }}>Kamar {b.room_code} akan dibebaskan setelah check-out.</p>
             <div className="form-group">
-              <label className="form-label">Biaya Tambahan (Rp)</label>
-              <input type="number" className="form-control" min="0" value={extraFee} onChange={(e) => setExtraFee(e.target.value)} />
+              <label className="form-label">Biaya Tambahan</label>
+              <RupiahInput value={extraFee} onChange={setExtraFee} />
             </div>
             <div className="form-group">
               <label className="form-label">Metode Pembayaran</label>

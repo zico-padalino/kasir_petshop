@@ -2,6 +2,7 @@ import { useState, useMemo, lazy, Suspense } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
 import { getCategories, getProduct, createProduct, updateProduct, normalizeScanCode } from '../db/store'
 import { useToast } from '../context/ToastContext'
+import RupiahInput from '../components/RupiahInput'
 
 const BarcodeScanner = lazy(() => import('../components/BarcodeScanner'))
 
@@ -110,8 +111,8 @@ export default function ProductForm() {
               </div>
             </div>
             <div className="form-group">
-              <label className="form-label">Harga (Rp) *</label>
-              <input type="number" className="form-control" value={form.price} onChange={(e) => set('price', e.target.value)} min="1" required />
+              <label className="form-label">Harga *</label>
+              <RupiahInput value={form.price} onChange={(v) => set('price', v)} required />
             </div>
             <div className="form-group">
               <label className="form-label">Nama Produk *</label>

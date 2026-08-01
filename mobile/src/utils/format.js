@@ -7,6 +7,20 @@ export function rupiah(n) {
   return 'Rp ' + Math.round(Number(n || 0)).toLocaleString('id-ID')
 }
 
+/** Ambil angka murni dari string rupiah (hapus titik/spasi/Rp) */
+export function parseRupiah(str) {
+  const digits = String(str ?? '').replace(/\D/g, '')
+  if (!digits) return 0
+  return Number(digits)
+}
+
+/** Format angka ke tampilan input: 185000 → 185.000 */
+export function formatRupiahInput(n) {
+  const num = Math.round(Number(n) || 0)
+  if (!num) return ''
+  return num.toLocaleString('id-ID')
+}
+
 const MONTHS = [
   'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
   'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
