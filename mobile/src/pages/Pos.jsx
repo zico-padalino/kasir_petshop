@@ -130,7 +130,7 @@ export default function Pos() {
 
   useEffect(() => {
     if (!scanMsg) return
-    const t = setTimeout(() => setScanMsg(null), 2200)
+    const t = setTimeout(() => setScanMsg(null), 4500)
     return () => clearTimeout(t)
   }, [scanMsg])
 
@@ -318,6 +318,7 @@ export default function Pos() {
         }>
           <BarcodeScanner
             onClose={() => setCameraOpen(false)}
+            lastFeedback={scanMsg}
             onScan={(code) => {
               handleScan(code)
             }}

@@ -1,7 +1,9 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, lazy, Suspense } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
-import { getCategories, getProduct, createProduct, updateProduct } from '../db/store'
+import { getCategories, getProduct, createProduct, updateProduct, normalizeScanCode } from '../db/store'
 import { useToast } from '../context/ToastContext'
+
+const BarcodeScanner = lazy(() => import('../components/BarcodeScanner'))
 
 export default function ProductForm() {
   const { id } = useParams()
@@ -21,6 +23,7 @@ export default function ProductForm() {
     stock: existing?.stock ?? 0,
     is_active: existing ? Boolean(existing.is_active) : true,
   }))
+  const [scanOpen, setScanOpen] = useState(false)
 
   function set(k, v) {
     setForm((f) => ({ ...f, [k]: v }))
@@ -28,7 +31,21 @@ export default function ProductForm() {
 
   function submit(e) {
     e.preventDefault()
-    const res = isEdit ? updateProduct(id, form) : createProduct(form)
+    const payload = {
+      ...form,
+      barcode: normalizeScanCode(form.barcode),
+      price: Number(form.price) || 0,
+      stock: Number(form.stock) || 0,
+    }
+    if (payload.stock <= 0) {
+      toast.error('Isi stok minimal 1 agar bisa dijual di kasir.')
+      return
+    }
+    if (payload.price <= 0) {
+      toast.error('Isi harga produk terlebih dahulu.')
+      return
+    }
+    const res = isEdit ? updateProduct(id, payload) : createProduct(payload)
     if (res.ok) {
       toast.success(res.message)
       navigate('/products')
@@ -66,13 +83,35 @@ export default function ProductForm() {
                 <input type="text" className="form-control" value={form.sku} onChange={(e) => set('sku', e.target.value)} placeholder="MK-006" required />
               </div>
               <div className="form-group">
-                <label className="form-label">Barcode</label>
-                <input type="text" className="form-control" value={form.barcode} onChange={(e) => set('barcode', e.target.value)} placeholder="8991001000001" />
+                <label className="form-label">Barcode *</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    type="text"
+                    className="form-control"
+                    value={form.barcode}
+                    onChange={(e) => set('barcode', e.target.value)}
+                    placeholder="Scan atau ketik angka barcode"
+                    inputMode="numeric"
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-outline"
+                    title="Scan barcode kemasan"
+                    onClick={() => setScanOpen(true)}
+                    disabled={!window.isSecureContext}
+                  >
+                    <i className="bi bi-camera"></i>
+                  </button>
+                </div>
+                <small style={{ color: '#888', fontSize: 12 }}>
+                  Paling akurat: tekan ikon kamera, scan kemasan, angka terisi otomatis.
+                </small>
               </div>
             </div>
             <div className="form-group">
               <label className="form-label">Harga (Rp) *</label>
-              <input type="number" className="form-control" value={form.price} onChange={(e) => set('price', e.target.value)} min="0" required />
+              <input type="number" className="form-control" value={form.price} onChange={(e) => set('price', e.target.value)} min="1" required />
             </div>
             <div className="form-group">
               <label className="form-label">Nama Produk *</label>
@@ -85,7 +124,7 @@ export default function ProductForm() {
             <div className="form-row">
               <div className="form-group">
                 <label className="form-label">Stok *</label>
-                <input type="number" className="form-control" value={form.stock} onChange={(e) => set('stock', e.target.value)} min="0" required />
+                <input type="number" className="form-control" value={form.stock} onChange={(e) => set('stock', e.target.value)} min="1" required />
               </div>
               <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 28 }}>
                 <input type="checkbox" id="is_active" checked={form.is_active} onChange={(e) => set('is_active', e.target.checked)} />
@@ -99,6 +138,24 @@ export default function ProductForm() {
           </form>
         </div>
       </div>
+
+      {scanOpen && (
+        <Suspense fallback={
+          <div className="modal-overlay show">
+            <div className="modal-box" style={{ textAlign: 'center' }}>Memuat kamera...</div>
+          </div>
+        }>
+          <BarcodeScanner
+            onClose={() => setScanOpen(false)}
+            onScan={(code) => {
+              const n = normalizeScanCode(code)
+              set('barcode', n)
+              toast.success(`Barcode diisi: ${n}`)
+              setScanOpen(false)
+            }}
+          />
+        </Suspense>
+      )}
     </>
   )
 }

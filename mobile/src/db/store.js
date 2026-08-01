@@ -318,20 +318,59 @@ export function getPosProducts({ search = '', categoryId = '' } = {}) {
   return getProducts({ search, categoryId }).filter((p) => p.is_active && p.stock > 0)
 }
 
+/** Normalisasi kode barcode/SKU untuk pencocokan */
+export function normalizeScanCode(code) {
+  return String(code || '')
+    .trim()
+    .replace(/[\s\-]/g, '')
+}
+
+function barcodeVariants(code) {
+  const n = normalizeScanCode(code)
+  if (!n) return []
+  const set = new Set([n, n.toUpperCase()])
+  // angka saja (EAN/UPC)
+  const digits = n.replace(/\D/g, '')
+  if (digits) {
+    set.add(digits)
+    // buang leading zero umum
+    set.add(digits.replace(/^0+/, '') || '0')
+    // pad EAN-13
+    if (digits.length < 13 && digits.length >= 8) {
+      set.add(digits.padStart(13, '0'))
+    }
+  }
+  return [...set]
+}
+
 /** Cari produk aktif lewat barcode atau SKU (untuk scan kasir) */
 export function findProductByScan(code) {
-  const q = String(code || '').trim()
+  const q = normalizeScanCode(code)
   if (!q) return { ok: false, message: 'Kode kosong.' }
   const db = load()
+  const variants = barcodeVariants(q)
   const upper = q.toUpperCase()
-  const prod = db.products.find(
-    (p) =>
-      p.is_active &&
-      ((p.barcode && String(p.barcode).trim() === q) ||
-        (p.sku && String(p.sku).trim().toUpperCase() === upper))
-  )
-  if (!prod) return { ok: false, message: `Barang tidak ditemukan: ${q}` }
-  if (prod.stock <= 0) return { ok: false, message: `"${prod.name}" stok habis.` }
+
+  const prod = db.products.find((p) => {
+    if (!p.is_active) return false
+    const sku = String(p.sku || '').trim().toUpperCase()
+    if (sku && (sku === upper || variants.includes(sku))) return true
+    const bc = normalizeScanCode(p.barcode || '')
+    if (!bc) return false
+    const pVars = barcodeVariants(bc)
+    return variants.some((v) => pVars.includes(v) || bc === v)
+  })
+
+  if (!prod) {
+    return {
+      ok: false,
+      message: `Barang tidak ditemukan: ${q}. Pastikan barcode di menu Produk sama persis.`,
+      code: q,
+    }
+  }
+  if (Number(prod.stock) <= 0) {
+    return { ok: false, message: `"${prod.name}" stok habis. Tambah stok dulu.`, code: q }
+  }
   const cat = db.categories.find((c) => c.id === prod.category_id)
   return {
     ok: true,
@@ -339,6 +378,7 @@ export function findProductByScan(code) {
       ...prod,
       category_name: cat?.name ?? '',
     },
+    code: q,
   }
 }
 
@@ -353,8 +393,8 @@ export function createProduct(data) {
     return { ok: false, message: 'SKU sudah digunakan.' }
   }
   const id = nextId(db.products)
-  const barcode = (data.barcode || '').trim() || `8991001${String(id).padStart(6, '0')}`
-  if (db.products.some((p) => p.barcode && p.barcode === barcode)) {
+  const barcode = normalizeScanCode(data.barcode || '') || `8991001${String(id).padStart(6, '0')}`
+  if (db.products.some((p) => p.barcode && normalizeScanCode(p.barcode) === barcode)) {
     return { ok: false, message: 'Barcode sudah digunakan.' }
   }
   db.products.push({
@@ -381,8 +421,8 @@ export function updateProduct(id, data) {
   if (db.products.some((p) => p.sku === sku && p.id !== Number(id))) {
     return { ok: false, message: 'SKU sudah digunakan produk lain.' }
   }
-  const barcode = (data.barcode || '').trim() || prod.barcode || `8991001${String(prod.id).padStart(6, '0')}`
-  if (db.products.some((p) => p.barcode && p.barcode === barcode && p.id !== Number(id))) {
+  const barcode = normalizeScanCode(data.barcode || '') || prod.barcode || `8991001${String(prod.id).padStart(6, '0')}`
+  if (db.products.some((p) => p.barcode && normalizeScanCode(p.barcode) === barcode && p.id !== Number(id))) {
     return { ok: false, message: 'Barcode sudah digunakan produk lain.' }
   }
   prod.category_id = Number(data.category_id)
