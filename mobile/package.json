@@ -11,6 +11,7 @@
     "deploy:cloudflare": "npm run build && npx wrangler pages deploy dist --project-name=kasir-dzikra-mobile"
   },
   "dependencies": {
+    "@zxing/library": "^0.23.0",
     "html5-qrcode": "^2.3.8",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

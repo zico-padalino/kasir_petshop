@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
+import { decodeBarcodeFromFile } from '../utils/decodeBarcode'
 
 const FORMATS_HTML5 = [
   Html5QrcodeSupportedFormats.EAN_13,
@@ -11,13 +12,6 @@ const FORMATS_HTML5 = [
   Html5QrcodeSupportedFormats.CODE_93,
   Html5QrcodeSupportedFormats.ITF,
   Html5QrcodeSupportedFormats.QR_CODE,
-  Html5QrcodeSupportedFormats.DATA_MATRIX,
-]
-
-const FORMATS_NATIVE = [
-  'ean_13', 'ean_8', 'upc_a', 'upc_e',
-  'code_128', 'code_39', 'code_93', 'codabar',
-  'itf', 'qr_code', 'data_matrix',
 ]
 
 function beep() {
@@ -34,12 +28,6 @@ function beep() {
   } catch { /* ignore */ }
 }
 
-/**
- * Scanner dengan 3 cara:
- * 1) Live kamera
- * 2) Ambil / pilih foto (paling andal di banyak HP)
- * 3) Ketik manual (via parent)
- */
 export default function BarcodeScanner({ onScan, onClose, lastFeedback }) {
   const videoRef = useRef(null)
   const fileRef = useRef(null)
@@ -49,12 +37,13 @@ export default function BarcodeScanner({ onScan, onClose, lastFeedback }) {
   const onScanRef = useRef(onScan)
   onScanRef.current = onScan
 
-  const [mode, setMode] = useState('photo') // 'photo' | 'live' — default foto (lebih andal)
+  const [mode, setMode] = useState('photo')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [ready, setReady] = useState(false)
   const [lastCode, setLastCode] = useState('')
-  const [status, setStatus] = useState('Pilih foto barcode kemasan')
+  const [preview, setPreview] = useState('')
+  const [status, setStatus] = useState('Ambil foto barcode dari dekat')
   const [manual, setManual] = useState('')
 
   function emit(code) {
@@ -64,6 +53,7 @@ export default function BarcodeScanner({ onScan, onClose, lastFeedback }) {
     if (lastRef.current.code === c && now - lastRef.current.at < 1200) return true
     lastRef.current = { code: c, at: now }
     setLastCode(c)
+    setManual(c)
     setStatus('Kode terbaca!')
     setError('')
     beep()
@@ -75,43 +65,24 @@ export default function BarcodeScanner({ onScan, onClose, lastFeedback }) {
   async function decodeFile(file) {
     setBusy(true)
     setError('')
-    setStatus('Membaca barcode dari foto…')
+    setStatus('Memproses foto (bisa 5–15 detik)…')
     try {
-      // 1) Native BarcodeDetector dari bitmap
-      if (typeof window.BarcodeDetector === 'function') {
-        try {
-          const bmp = await createImageBitmap(file)
-          const detector = new window.BarcodeDetector({ formats: FORMATS_NATIVE })
-          const codes = await detector.detect(bmp)
-          bmp.close?.()
-          if (codes?.length) {
-            emit(codes[0].rawValue)
-            return
-          }
-        } catch {
-          // lanjut fallback
-        }
-      }
+      if (preview) URL.revokeObjectURL(preview)
+      setPreview(URL.createObjectURL(file))
+    } catch { /* ignore */ }
 
-      // 2) html5-qrcode scanFile
-      const scanner = new Html5Qrcode('file-scan-region', {
-        formatsToSupport: FORMATS_HTML5,
-        verbose: false,
-      })
-      try {
-        const decoded = await scanner.scanFile(file, true)
-        if (decoded) {
-          emit(decoded)
-          return
-        }
-      } finally {
-        try { scanner.clear() } catch { /* ignore */ }
+    try {
+      const code = await decodeBarcodeFromFile(file)
+      if (code) {
+        emit(code)
+      } else {
+        setError(
+          'Barcode di foto tidak terbaca. Tips: foto hanya bagian barcode, tegak lurus, terang, tidak buram. Atau ketik angka di bawah barcode secara manual.'
+        )
+        setStatus('Tidak terbaca — ketik manual')
       }
-
-      setError('Barcode tidak terbaca dari foto. Foto ulang lebih dekat & terang, atau ketik angka manual.')
-      setStatus('Gagal membaca foto')
     } catch (err) {
-      setError(err?.message || 'Gagal membaca foto.')
+      setError(err?.message || 'Gagal memproses foto.')
       setStatus('Gagal')
     } finally {
       setBusy(false)
@@ -124,10 +95,8 @@ export default function BarcodeScanner({ onScan, onClose, lastFeedback }) {
     if (file) decodeFile(file)
   }
 
-  // Live camera mode
   useEffect(() => {
     if (mode !== 'live') return undefined
-
     let cancelled = false
     let html5 = null
 
@@ -135,14 +104,11 @@ export default function BarcodeScanner({ onScan, onClose, lastFeedback }) {
       setError('')
       setReady(false)
       setStatus('Menyalakan kamera…')
-
       if (!window.isSecureContext) {
         setError('Butuh HTTPS (Jalankan-Tunnel.bat).')
         return
       }
-
       try {
-        // Coba html5-qrcode live (lebih fokus untuk beberapa HP)
         html5 = new Html5Qrcode('live-reader', {
           formatsToSupport: FORMATS_HTML5,
           verbose: false,
@@ -159,56 +125,19 @@ export default function BarcodeScanner({ onScan, onClose, lastFeedback }) {
         )
         if (!cancelled) {
           setReady(true)
-          setStatus('Live kamera aktif — dekatkan barcode')
+          setStatus('Live kamera — dekatkan barcode')
         }
       } catch (err) {
-        // Fallback getUserMedia + BarcodeDetector
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
-            audio: false,
-          })
-          if (cancelled) {
-            stream.getTracks().forEach((t) => t.stop())
-            return
-          }
-          streamRef.current = stream
-          const video = videoRef.current
-          video.srcObject = stream
-          await video.play()
-          setReady(true)
-          setStatus('Live kamera aktif')
-
-          if (typeof window.BarcodeDetector === 'function') {
-            const detector = new window.BarcodeDetector({ formats: FORMATS_NATIVE })
-            const tick = async () => {
-              if (cancelled) return
-              try {
-                if (video.readyState >= 2) {
-                  const codes = await detector.detect(video)
-                  if (codes?.length) emit(codes[0].rawValue)
-                }
-              } catch { /* ignore */ }
-              timerRef.current = window.setTimeout(tick, 150)
-            }
-            tick()
-          } else {
-            setError('HP ini kurang cocok untuk live scan. Pakai mode Foto.')
-          }
-        } catch (e2) {
-          setError(e2?.message || 'Kamera live gagal. Pakai mode Foto.')
-          setStatus('Gagal')
-        }
+        setError('Live kamera gagal di HP ini. Pakai mode Foto atau ketik manual.')
+        setStatus('Gagal live')
       }
     }
 
     startLive()
-
     return () => {
       cancelled = true
       clearTimeout(timerRef.current)
       streamRef.current?.getTracks()?.forEach((t) => t.stop())
-      streamRef.current = null
       if (html5?.isScanning) {
         html5.stop().catch(() => {}).finally(() => {
           try { html5.clear() } catch { /* ignore */ }
@@ -217,11 +146,14 @@ export default function BarcodeScanner({ onScan, onClose, lastFeedback }) {
     }
   }, [mode])
 
+  useEffect(() => () => {
+    if (preview) URL.revokeObjectURL(preview)
+  }, [preview])
+
   function submitManual(e) {
     e.preventDefault()
     if (!manual.trim()) return
     emit(manual.trim())
-    setManual('')
   }
 
   return (
@@ -233,19 +165,11 @@ export default function BarcodeScanner({ onScan, onClose, lastFeedback }) {
         </div>
 
         <div className="scan-mode-tabs">
-          <button
-            type="button"
-            className={`category-tab ${mode === 'photo' ? 'active' : ''}`}
-            onClick={() => setMode('photo')}
-          >
-            📷 Foto (disarankan)
+          <button type="button" className={`category-tab ${mode === 'photo' ? 'active' : ''}`} onClick={() => setMode('photo')}>
+            📷 Foto
           </button>
-          <button
-            type="button"
-            className={`category-tab ${mode === 'live' ? 'active' : ''}`}
-            onClick={() => setMode('live')}
-          >
-            📹 Live kamera
+          <button type="button" className={`category-tab ${mode === 'live' ? 'active' : ''}`} onClick={() => setMode('live')}>
+            📹 Live
           </button>
         </div>
 
@@ -253,14 +177,10 @@ export default function BarcodeScanner({ onScan, onClose, lastFeedback }) {
 
         {mode === 'photo' ? (
           <div className="scan-photo-box">
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              hidden
-              onChange={onFileChange}
-            />
+            <input ref={fileRef} type="file" accept="image/*" capture="environment" hidden onChange={onFileChange} />
+            {preview && (
+              <img src={preview} alt="Preview" className="scan-photo-preview" />
+            )}
             <button
               type="button"
               className="btn btn-primary"
@@ -269,12 +189,11 @@ export default function BarcodeScanner({ onScan, onClose, lastFeedback }) {
               onClick={() => fileRef.current?.click()}
             >
               <i className="bi bi-camera-fill"></i>
-              {busy ? ' Membaca…' : ' Ambil / Pilih Foto Barcode'}
+              {busy ? ' Membaca foto…' : ' Ambil / Pilih Foto Barcode'}
             </button>
             <p style={{ margin: '10px 0 0', fontSize: 12, color: '#666', textAlign: 'center' }}>
-              Foto barcode dari dekat, fokus, dan terang — biasanya lebih akurat daripada live scan.
+              Foto <strong>hanya bagian barcode</strong> (garis hitam + angka), jarak dekat, fokus tajam.
             </p>
-            <div id="file-scan-region" style={{ width: 1, height: 1, overflow: 'hidden' }} />
           </div>
         ) : (
           <div className="scan-reader scan-reader-native">
@@ -284,27 +203,30 @@ export default function BarcodeScanner({ onScan, onClose, lastFeedback }) {
           </div>
         )}
 
-        {mode === 'live' && ready && !lastCode && (
-          <div className="scan-pulse">Memindai live…</div>
-        )}
-
-        <form onSubmit={submitManual} className="scan-manual-row">
-          <input
-            type="text"
-            className="form-control"
-            placeholder="Atau ketik barcode / SKU lalu Enter"
-            value={manual}
-            onChange={(e) => setManual(e.target.value)}
-            inputMode="text"
-          />
-          <button type="submit" className="btn btn-success btn-sm" disabled={!manual.trim()}>
-            OK
-          </button>
-        </form>
+        <div className="scan-manual-block">
+          <div className="scan-manual-title">Ketik manual (paling pasti)</div>
+          <form onSubmit={submitManual} className="scan-manual-row">
+            <input
+              type="text"
+              className="form-control"
+              placeholder="Angka di bawah barcode / SKU"
+              value={manual}
+              onChange={(e) => setManual(e.target.value)}
+              inputMode="numeric"
+              autoComplete="off"
+            />
+            <button type="submit" className="btn btn-success" disabled={!manual.trim()}>
+              Pakai
+            </button>
+          </form>
+          <p style={{ margin: '8px 0 0', fontSize: 12, color: '#888' }}>
+            Lihat angka di bawah garis barcode kemasan, ketik di sini, lalu tekan <strong>Pakai</strong>.
+          </p>
+        </div>
 
         {error && (
           <div className="alert-custom alert-danger" style={{ marginTop: 12 }}>
-            <div className="alert-body"><strong>Info</strong>{error}</div>
+            <div className="alert-body"><strong>Belum terbaca</strong>{error}</div>
           </div>
         )}
 
@@ -322,13 +244,6 @@ export default function BarcodeScanner({ onScan, onClose, lastFeedback }) {
             {lastFeedback.text}
           </div>
         )}
-
-        <p className="scan-modal-tip">
-          <strong>Solusi lain jika kamera sulit:</strong>
-          <br />1. Mode <strong>Foto</strong> (tombol di atas)
-          <br />2. Ketik barcode/SKU di kotak input
-          <br />3. Scanner USB/Bluetooth (tembak ke kolom scan kasir)
-        </p>
       </div>
     </div>
   )
