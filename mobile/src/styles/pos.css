@@ -1202,6 +1202,23 @@ table.data-table tr:hover { background: #fafbfc; }
     font-size: 13px;
     color: #666;
 }
+.scan-mode-tabs {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+}
+.scan-photo-box {
+    padding: 8px 0 4px;
+}
+.scan-manual-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+}
+.scan-manual-row .form-control {
+    flex: 1;
+}
 .scan-reader {
     width: 100%;
     min-height: 260px;
