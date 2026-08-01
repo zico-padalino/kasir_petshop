@@ -7,5 +7,7 @@ export default defineConfig({
   server: {
     port: 5173,
     host: true,
+    // Izinkan Cloudflare Quick Tunnel + LocalTunnel (URL berubah tiap jalan)
+    allowedHosts: true,
   },
 })
