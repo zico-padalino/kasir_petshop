@@ -1,6 +1,13 @@
-import { useState, useMemo, lazy, Suspense } from 'react'
+import { useState, useMemo, useEffect, lazy, Suspense } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
-import { getCategories, getProduct, createProduct, updateProduct, normalizeScanCode } from '../db/store'
+import {
+  getCategories,
+  getProduct,
+  createProduct,
+  updateProduct,
+  normalizeScanCode,
+  generateNextSku,
+} from '../db/store'
 import { useToast } from '../context/ToastContext'
 import RupiahInput from '../components/RupiahInput'
 
@@ -25,6 +32,16 @@ export default function ProductForm() {
     is_active: existing ? Boolean(existing.is_active) : true,
   }))
   const [scanOpen, setScanOpen] = useState(false)
+
+  useEffect(() => {
+    if (isEdit) return
+    if (!form.category_id) {
+      setForm((f) => (f.sku ? { ...f, sku: '' } : f))
+      return
+    }
+    const next = generateNextSku(form.category_id)
+    setForm((f) => (f.sku === next ? f : { ...f, sku: next }))
+  }, [form.category_id, isEdit])
 
   function set(k, v) {
     setForm((f) => ({ ...f, [k]: v }))
@@ -80,8 +97,18 @@ export default function ProductForm() {
             </div>
             <div className="form-row">
               <div className="form-group">
-                <label className="form-label">SKU *</label>
-                <input type="text" className="form-control" value={form.sku} onChange={(e) => set('sku', e.target.value)} placeholder="MK-006" required />
+                <label className="form-label">SKU</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  value={form.sku || (isEdit ? '' : 'Pilih kategori dulu')}
+                  readOnly
+                  disabled
+                  style={{ background: '#f8f9fa', fontWeight: 600 }}
+                />
+                <small style={{ color: '#888', fontSize: 12 }}>
+                  {isEdit ? 'SKU tidak dapat diubah.' : 'Dibuat otomatis sesuai kategori (contoh: MK-006).'}
+                </small>
               </div>
               <div className="form-group">
                 <label className="form-label">Barcode *</label>

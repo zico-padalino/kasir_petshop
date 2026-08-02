@@ -16,19 +16,18 @@
                     @endforeach
                 </select>
             </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label class="form-label">SKU *</label>
-                    <input type="text" name="sku" class="form-control" value="{{ old('sku') }}" placeholder="MK-006" required>
+            <div class="form-group">
+                <label class="form-label">SKU</label>
+                <input type="text" class="form-control" value="Otomatis sesuai kategori (contoh: MK-006)" disabled style="background:#f8f9fa;font-weight:600">
+                <small style="color:#888;font-size:12px">SKU dibuat otomatis saat produk disimpan.</small>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Harga *</label>
+                <div class="rupiah-field">
+                    <span class="rupiah-field-prefix">Rp</span>
+                    <input type="text" class="form-control rupiah-field-input" data-rupiah-for="price" value="{{ old('price') !== null ? number_format((int) old('price', 0), 0, ',', '.') : '' }}" inputmode="numeric" autocomplete="off" required>
                 </div>
-                <div class="form-group">
-                    <label class="form-label">Harga *</label>
-                    <div class="rupiah-field">
-                        <span class="rupiah-field-prefix">Rp</span>
-                        <input type="text" class="form-control rupiah-field-input" data-rupiah-for="price" value="{{ old('price') !== null ? number_format((int) old('price', 0), 0, ',', '.') : '' }}" inputmode="numeric" autocomplete="off" required>
-                    </div>
-                    <input type="hidden" name="price" id="price" value="{{ old('price', 0) }}">
-                </div>
+                <input type="hidden" name="price" id="price" value="{{ old('price', 0) }}">
             </div>
             <div class="form-group">
                 <label class="form-label">Nama Produk *</label>

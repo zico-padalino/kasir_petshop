@@ -386,9 +386,41 @@ export function getProduct(id) {
   return load().products.find((p) => p.id === Number(id)) || null
 }
 
+/** Prefiks SKU dari nama kategori (MK, AK, PR, MN, KN, ...) */
+export function skuPrefixFromCategory(category) {
+  const name = String(category?.name || '').toLowerCase()
+  if (name.includes('makanan')) return 'MK'
+  if (name.includes('aksesoris')) return 'AK'
+  if (name.includes('perawatan')) return 'PR'
+  if (name.includes('mainan')) return 'MN'
+  if (name.includes('kandang') || name.includes('aquarium')) return 'KN'
+  const letters = name.replace(/[^a-z]/g, '').toUpperCase()
+  return (letters.slice(0, 2) || 'PR').padEnd(2, 'X')
+}
+
+/** SKU berikutnya untuk kategori, contoh: MK-006 */
+export function generateNextSku(categoryId) {
+  const db = load()
+  const cat = db.categories.find((c) => c.id === Number(categoryId))
+  if (!cat) return ''
+  const prefix = skuPrefixFromCategory(cat)
+  const re = new RegExp(`^${prefix}-(\\d+)$`, 'i')
+  let max = 0
+  for (const p of db.products) {
+    const m = String(p.sku || '').match(re)
+    if (m) max = Math.max(max, Number(m[1]))
+  }
+  return `${prefix}-${String(max + 1).padStart(3, '0')}`
+}
+
 export function createProduct(data) {
   const db = load()
-  const sku = data.sku.trim().toUpperCase()
+  const categoryId = Number(data.category_id)
+  if (!db.categories.some((c) => c.id === categoryId)) {
+    return { ok: false, message: 'Kategori tidak valid.' }
+  }
+  const sku = generateNextSku(categoryId)
+  if (!sku) return { ok: false, message: 'Gagal membuat SKU otomatis.' }
   if (db.products.some((p) => p.sku === sku)) {
     return { ok: false, message: 'SKU sudah digunakan.' }
   }
@@ -399,7 +431,7 @@ export function createProduct(data) {
   }
   db.products.push({
     id,
-    category_id: Number(data.category_id),
+    category_id: categoryId,
     sku,
     barcode,
     name: data.name.trim(),
@@ -410,23 +442,20 @@ export function createProduct(data) {
   })
   pushLog(db, { action: 'create', module: 'product', description: `Menambah produk "${data.name.trim()}" (${sku})` })
   save(db)
-  return { ok: true, message: 'Produk berhasil ditambahkan.' }
+  return { ok: true, message: `Produk berhasil ditambahkan. SKU: ${sku}` }
 }
 
 export function updateProduct(id, data) {
   const db = load()
   const prod = db.products.find((p) => p.id === Number(id))
   if (!prod) return { ok: false, message: 'Produk tidak ditemukan.' }
-  const sku = data.sku.trim().toUpperCase()
-  if (db.products.some((p) => p.sku === sku && p.id !== Number(id))) {
-    return { ok: false, message: 'SKU sudah digunakan produk lain.' }
-  }
+  // SKU tidak diubah saat edit (dibuat otomatis saat tambah produk)
+  const sku = prod.sku
   const barcode = normalizeScanCode(data.barcode || '') || prod.barcode || `8991001${String(prod.id).padStart(6, '0')}`
   if (db.products.some((p) => p.barcode && normalizeScanCode(p.barcode) === barcode && p.id !== Number(id))) {
     return { ok: false, message: 'Barcode sudah digunakan produk lain.' }
   }
   prod.category_id = Number(data.category_id)
-  prod.sku = sku
   prod.barcode = barcode
   prod.name = data.name.trim()
   prod.description = data.description?.trim() || null

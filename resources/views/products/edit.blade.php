@@ -17,8 +17,9 @@
             </div>
             <div class="form-row">
                 <div class="form-group">
-                    <label class="form-label">SKU *</label>
-                    <input type="text" name="sku" class="form-control" value="{{ $product->sku }}" required>
+                    <label class="form-label">SKU</label>
+                    <input type="text" class="form-control" value="{{ $product->sku }}" disabled style="background:#f8f9fa;font-weight:600">
+                    <small style="color:#888;font-size:12px">SKU tidak dapat diubah.</small>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Harga *</label>

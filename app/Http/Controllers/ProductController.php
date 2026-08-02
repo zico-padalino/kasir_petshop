@@ -50,7 +50,6 @@ class ProductController extends Controller
     {
         $data = $request->validate([
             'category_id' => 'required|integer',
-            'sku' => 'required|string|max:50|unique:products,sku',
             'name' => 'required|string|max:200',
             'description' => 'nullable|string|max:500',
             'price' => 'required|numeric|min:0',
@@ -58,12 +57,19 @@ class ProductController extends Controller
             'is_active' => 'nullable|boolean',
         ]);
 
+        $category = DB::selectOne('SELECT id, name FROM categories WHERE id = ?', [$data['category_id']]);
+        if (! $category) {
+            return back()->with('error', 'Kategori tidak valid.')->withInput();
+        }
+
+        $sku = $this->generateNextSku($category->name);
+
         DB::insert("
             INSERT INTO products (category_id, sku, name, description, price, stock, is_active, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
         ", [
             $data['category_id'],
-            strtoupper($data['sku']),
+            $sku,
             $data['name'],
             $data['description'] ?? null,
             $data['price'],
@@ -71,7 +77,7 @@ class ProductController extends Controller
             $request->boolean('is_active', true) ? 1 : 0,
         ]);
 
-        return redirect()->route('products.index')->with('success', 'Produk berhasil ditambahkan.');
+        return redirect()->route('products.index')->with('success', "Produk berhasil ditambahkan. SKU: {$sku}");
     }
 
     public function edit(int $id)
@@ -91,7 +97,6 @@ class ProductController extends Controller
     {
         $data = $request->validate([
             'category_id' => 'required|integer',
-            'sku' => 'required|string|max:50',
             'name' => 'required|string|max:200',
             'description' => 'nullable|string|max:500',
             'price' => 'required|numeric|min:0',
@@ -99,22 +104,18 @@ class ProductController extends Controller
             'is_active' => 'nullable|boolean',
         ]);
 
-        $exists = DB::selectOne(
-            'SELECT id FROM products WHERE sku = ? AND id != ?',
-            [strtoupper($data['sku']), $id]
-        );
-
-        if ($exists) {
-            return back()->with('error', 'SKU sudah digunakan produk lain.')->withInput();
+        $product = DB::selectOne('SELECT id, sku FROM products WHERE id = ?', [$id]);
+        if (! $product) {
+            return redirect()->route('products.index')->with('error', 'Produk tidak ditemukan.');
         }
 
+        // SKU tetap (dibuat otomatis saat tambah produk)
         DB::update("
             UPDATE products
-            SET category_id = ?, sku = ?, name = ?, description = ?, price = ?, stock = ?, is_active = ?, updated_at = NOW()
+            SET category_id = ?, name = ?, description = ?, price = ?, stock = ?, is_active = ?, updated_at = NOW()
             WHERE id = ?
         ", [
             $data['category_id'],
-            strtoupper($data['sku']),
             $data['name'],
             $data['description'] ?? null,
             $data['price'],
@@ -124,6 +125,45 @@ class ProductController extends Controller
         ]);
 
         return redirect()->route('products.index')->with('success', 'Produk berhasil diperbarui.');
+    }
+
+    private function skuPrefixFromCategory(string $name): string
+    {
+        $n = strtolower($name);
+        if (str_contains($n, 'makanan')) {
+            return 'MK';
+        }
+        if (str_contains($n, 'aksesoris')) {
+            return 'AK';
+        }
+        if (str_contains($n, 'perawatan')) {
+            return 'PR';
+        }
+        if (str_contains($n, 'mainan')) {
+            return 'MN';
+        }
+        if (str_contains($n, 'kandang') || str_contains($n, 'aquarium')) {
+            return 'KN';
+        }
+
+        $letters = strtoupper(preg_replace('/[^a-z]/i', '', $n) ?? '');
+        $prefix = substr($letters.'XX', 0, 2);
+
+        return $prefix !== '' ? $prefix : 'PR';
+    }
+
+    private function generateNextSku(string $categoryName): string
+    {
+        $prefix = $this->skuPrefixFromCategory($categoryName);
+        $rows = DB::select('SELECT sku FROM products WHERE sku LIKE ?', [$prefix.'-%']);
+        $max = 0;
+        foreach ($rows as $row) {
+            if (preg_match('/^'.preg_quote($prefix, '/').'-(\d+)$/i', $row->sku, $m)) {
+                $max = max($max, (int) $m[1]);
+            }
+        }
+
+        return sprintf('%s-%03d', $prefix, $max + 1);
     }
 
     public function addStock(Request $request, int $id)
