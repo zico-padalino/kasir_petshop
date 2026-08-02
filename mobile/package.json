@@ -8,7 +8,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "deploy:cloudflare": "npm run build && npx wrangler pages deploy dist --project-name=kasir-dzikra-mobile"
+    "deploy:cloudflare": "npm run build && npx wrangler pages deploy dist --project-name=kasir-dzikra-mobile",
+    "deploy:netlify": "npm run build && npx netlify-cli deploy --prod --dir=dist"
   },
   "dependencies": {
     "@zxing/library": "^0.23.0",

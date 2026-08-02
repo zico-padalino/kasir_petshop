@@ -27,3 +27,5 @@ tools/tunnel-out.txt
 tools/tunnel-err.txt
 tools/tunnel-log.txt
 tools/tunnel-url.txt
+.netlify
+mobile/.netlify

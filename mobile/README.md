@@ -45,19 +45,35 @@ npm run preview    # pratinjau hasil build
 
 ## Deploy ke Netlify
 
-Ada 2 cara:
+Config sudah siap di `netlify.toml` (root & `mobile/`):
+- Base directory: `mobile`
+- Build command: `npm run build`
+- Publish directory: `dist`
 
-### A. Otomatis dari Git (disarankan)
+Cara paling mudah di Windows: double-klik `Jalankan-Deploy-Netlify.bat` di root repo.
 
-1. Push seluruh repo ke GitHub/GitLab.
-2. Di Netlify: **Add new site → Import an existing project** → pilih repo.
-3. Netlify akan membaca `mobile/netlify.toml`:
-   - Base directory: `mobile`
-   - Build command: `npm run build`
-   - Publish directory: `dist`
-4. Klik **Deploy**.
+### A. Otomatis dari Git (disarankan) — termasuk ganti akun
 
-### B. Manual (drag & drop)
+1. Buka https://app.netlify.com/logout lalu login **akun Netlify baru**.
+2. **Add new site → Import an existing project → GitHub**
+3. Pilih repo `zico-padalino/kasir_petshop` (izinkan akses GitHub jika diminta).
+4. Settings biasanya terisi otomatis dari `netlify.toml`. Deploy.
+5. Site lama di akun sebelumnya tidak ikut pindah — di akun baru akan dapat URL baru
+   (`https://nama-acak.netlify.app`). Kamera tetap bisa dipakai karena HTTPS.
+
+### B. CLI (akun baru / ganti akun)
+
+```bash
+cd mobile
+npx netlify-cli logout
+npx netlify-cli login          # login akun baru di browser
+npm run build
+npx netlify-cli sites:create   # sekali saja
+npx netlify-cli link           # hubungkan folder ke site
+npm run deploy:netlify
+```
+
+### C. Manual (drag & drop)
 
 ```bash
 cd mobile
@@ -65,7 +81,8 @@ npm install
 npm run build
 ```
 
-Lalu buka https://app.netlify.com/drop dan seret folder `mobile/dist` ke sana.
+Lalu buka https://app.netlify.com/drop dan seret folder `mobile/dist` ke sana
+(pastikan sudah login akun Netlify yang diinginkan).
 
 ## Catatan penting
 
