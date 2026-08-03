@@ -8,12 +8,24 @@ const EMPTY = { name: '', email: '', password: '', role_id: '', is_active: true 
 export default function Users() {
   const { user: currentUser } = useAuth()
   const toast = useToast()
-  const roles = useMemo(() => getRoles(), [])
+  const isAdmin = currentUser?.role_slug === 'admin'
+  const allRoles = useMemo(() => getRoles(), [])
+  const roles = useMemo(
+    () => (isAdmin ? allRoles.filter((r) => r.slug !== 'owner') : allRoles),
+    [allRoles, isAdmin]
+  )
   const [reload, setReload] = useState(0)
   const users = useMemo(() => getUsers(), [reload])
 
+  const defaultRoleId = roles[0]?.id ?? ''
   const [editing, setEditing] = useState(null)
-  const [form, setForm] = useState({ ...EMPTY, role_id: roles[0]?.id ?? '' })
+  const [form, setForm] = useState({ ...EMPTY, role_id: defaultRoleId })
+
+  function canManageUser(u) {
+    // Admin tidak boleh kelola akun Owner; Owner boleh
+    if (isAdmin && u.role_slug === 'owner') return false
+    return true
+  }
 
   function set(k, v) { setForm((f) => ({ ...f, [k]: v })) }
 
@@ -23,13 +35,19 @@ export default function Users() {
   }
 
   function startEdit(u) {
+    if (!canManageUser(u)) {
+      toast.error('Admin tidak dapat mengubah akun Owner.')
+      return
+    }
     setEditing(u.id)
     setForm({ name: u.name, email: u.email, password: '', role_id: u.role_id, is_active: Boolean(u.is_active) })
   }
 
   function submit(e) {
     e.preventDefault()
-    const res = editing ? updateUser(editing, form) : createUser(form)
+    const res = editing
+      ? updateUser(editing, form, currentUser)
+      : createUser(form, currentUser)
     if (res.ok) {
       toast.success(res.message)
       resetForm()
@@ -40,6 +58,11 @@ export default function Users() {
   }
 
   function handleDelete(id) {
+    const target = users.find((u) => u.id === id)
+    if (target && !canManageUser(target)) {
+      toast.error('Admin tidak dapat menghapus akun Owner.')
+      return
+    }
     if (!confirm('Hapus pengguna?')) return
     const res = deleteUser(id, currentUser)
     res.ok ? toast.success(res.message) : toast.error(res.message)
@@ -65,11 +88,22 @@ export default function Users() {
     <>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
         <h1 className="page-title" style={{ marginBottom: 0 }}>Pengguna & Role Akses</h1>
-        <button className="btn btn-outline btn-sm" onClick={handleReset} title="Kembalikan ke data dummy awal">
-          <i className="bi bi-arrow-counterclockwise"></i> Reset Data Uji Coba
-        </button>
+        {isAdmin && (
+          <button className="btn btn-outline btn-sm" onClick={handleReset} title="Kembalikan ke data dummy awal">
+            <i className="bi bi-arrow-counterclockwise"></i> Reset Data Uji Coba
+          </button>
+        )}
       </div>
       <div style={{ height: 20 }} />
+
+      {isAdmin && (
+        <div className="alert-custom alert-info" style={{ marginBottom: 16 }}>
+          <span className="alert-icon"><i className="bi bi-info-circle-fill"></i></span>
+          <div className="alert-body">
+            Sebagai Admin, Anda tidak dapat menambah/edit/hapus akun Owner.
+          </div>
+        </div>
+      )}
 
       <div className="side-form-grid" style={{ gridTemplateColumns: '1fr 380px' }}>
         <div className="card">
@@ -79,20 +113,29 @@ export default function Users() {
               <table className="data-table">
                 <thead><tr><th>Nama</th><th>Email</th><th>Role</th><th>Status</th><th>Aksi</th></tr></thead>
                 <tbody>
-                  {users.map((u) => (
-                    <tr key={u.id}>
-                      <td><strong>{u.name}</strong></td>
-                      <td>{u.email}</td>
-                      <td>{roleBadge(u.role_slug, u.role_name)}</td>
-                      <td>{u.is_active ? <span className="badge badge-success">Aktif</span> : <span className="badge badge-danger">Nonaktif</span>}</td>
-                      <td style={{ whiteSpace: 'nowrap' }}>
-                        <button className="btn btn-sm btn-outline" onClick={() => startEdit(u)}><i className="bi bi-pencil"></i></button>{' '}
-                        {u.id !== currentUser?.id && (
-                          <button className="btn btn-sm btn-danger" onClick={() => handleDelete(u.id)}><i className="bi bi-trash"></i></button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                  {users.map((u) => {
+                    const manageable = canManageUser(u)
+                    return (
+                      <tr key={u.id}>
+                        <td><strong>{u.name}</strong></td>
+                        <td>{u.email}</td>
+                        <td>{roleBadge(u.role_slug, u.role_name)}</td>
+                        <td>{u.is_active ? <span className="badge badge-success">Aktif</span> : <span className="badge badge-danger">Nonaktif</span>}</td>
+                        <td style={{ whiteSpace: 'nowrap' }}>
+                          {manageable ? (
+                            <>
+                              <button className="btn btn-sm btn-outline" onClick={() => startEdit(u)}><i className="bi bi-pencil"></i></button>{' '}
+                              {u.id !== currentUser?.id && (
+                                <button className="btn btn-sm btn-danger" onClick={() => handleDelete(u.id)}><i className="bi bi-trash"></i></button>
+                              )}
+                            </>
+                          ) : (
+                            <span style={{ color: '#999', fontSize: 12 }}>—</span>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -121,6 +164,9 @@ export default function Users() {
                   <select className="form-control" value={form.role_id} onChange={(e) => set('role_id', e.target.value)} required>
                     {roles.map((r) => <option key={r.id} value={r.id}>{r.name} — {r.description}</option>)}
                   </select>
+                  {isAdmin && (
+                    <small style={{ color: '#888', fontSize: 12 }}>Role Owner hanya bisa dikelola oleh akun Owner.</small>
+                  )}
                 </div>
                 {editing && (
                   <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -143,9 +189,9 @@ export default function Users() {
           <div className="card" style={{ marginTop: 16 }}>
             <div className="card-header">Hak Akses Role</div>
             <div className="card-body" style={{ fontSize: 13 }}>
-              <p><span className="badge badge-danger">Admin</span> Akses penuh: POS, produk, kategori, pengguna</p>
+              <p><span className="badge badge-danger">Admin</span> Akses penuh: POS, produk, kategori, pengguna (kecuali Owner)</p>
               <p><span className="badge badge-info">Kasir</span> POS dan riwayat transaksi sendiri</p>
-              <p><span className="badge badge-warning">Owner</span> Dashboard, POS, lihat produk & semua transaksi</p>
+              <p><span className="badge badge-warning">Owner</span> Dashboard, laporan, dan kelola akun Owner</p>
             </div>
           </div>
         </div>

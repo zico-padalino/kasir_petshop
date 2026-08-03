@@ -3,6 +3,15 @@
 @section('page-title', 'Pengguna & Role Akses')
 
 @section('content')
+@if($isAdmin)
+<div class="alert-custom alert-info" style="margin-bottom:16px">
+    <span class="alert-icon"><i class="bi bi-info-circle-fill"></i></span>
+    <div class="alert-body">
+        Sebagai Admin, Anda tidak dapat menambah/edit/hapus akun Owner.
+    </div>
+</div>
+@endif
+
 <div style="display:grid;grid-template-columns:1fr 380px;gap:20px">
     <div class="card">
         <div class="card-header"><span>Daftar Pengguna</span></div>
@@ -13,6 +22,7 @@
                 </thead>
                 <tbody>
                     @foreach($users as $u)
+                    @php $canManage = !($isAdmin && $u->role_slug === 'owner'); @endphp
                     <tr>
                         <td><strong>{{ $u->name }}</strong></td>
                         <td>{{ $u->email }}</td>
@@ -33,6 +43,7 @@
                             @endif
                         </td>
                         <td>
+                            @if($canManage)
                             <button class="btn btn-sm btn-outline" onclick="editUser({{ json_encode($u) }})">
                                 <i class="bi bi-pencil"></i>
                             </button>
@@ -41,6 +52,9 @@
                                 @csrf @method('DELETE')
                                 <button class="btn btn-sm btn-danger"><i class="bi bi-trash"></i></button>
                             </form>
+                            @endif
+                            @else
+                            <span style="color:#999;font-size:12px">—</span>
                             @endif
                         </td>
                     </tr>
@@ -73,9 +87,12 @@
                         <label class="form-label">Role *</label>
                         <select name="role_id" id="userRole" class="form-control" required>
                             @foreach($roles as $role)
-                            <option value="{{ $role->id }}">{{ $role->name }} — {{ $role->description }}</option>
+                            <option value="{{ $role->id }}">{{ $role->name }} — {{ $role->description ?? '' }}</option>
                             @endforeach
                         </select>
+                        @if($isAdmin)
+                        <small style="color:#888;font-size:12px">Role Owner hanya bisa dikelola oleh akun Owner.</small>
+                        @endif
                     </div>
                     <div class="form-group" id="activeGroup" style="display:flex;align-items:center;gap:8px" hidden>
                         <input type="checkbox" name="is_active" value="1" id="userActive" checked>
@@ -92,9 +109,9 @@
         <div class="card" style="margin-top:16px">
             <div class="card-header">Hak Akses Role</div>
             <div class="card-body" style="font-size:13px">
-                <p><span class="badge badge-danger">Admin</span> Akses penuh: POS, produk, kategori, pengguna</p>
+                <p><span class="badge badge-danger">Admin</span> Akses penuh: POS, produk, kategori, pengguna (kecuali Owner)</p>
                 <p><span class="badge badge-info">Kasir</span> POS dan riwayat transaksi sendiri</p>
-                <p><span class="badge badge-warning">Owner</span> Dashboard, POS, lihat produk & semua transaksi</p>
+                <p><span class="badge badge-warning">Owner</span> Dashboard, laporan, dan kelola akun Owner</p>
             </div>
         </div>
     </div>

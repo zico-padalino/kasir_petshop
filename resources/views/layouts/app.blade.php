@@ -48,11 +48,13 @@
             </a>
             @endif
 
-            @if($roleSlug === 'admin')
+            @if(in_array($roleSlug, ['admin', 'owner']))
             <div class="menu-label">Manajemen</div>
+            @if($roleSlug === 'admin')
             <a href="{{ route('categories.index') }}" class="menu-item {{ request()->routeIs('categories.*') ? 'active' : '' }}">
                 <i class="bi bi-tags"></i> Kategori
             </a>
+            @endif
             <a href="{{ route('users.index') }}" class="menu-item {{ request()->routeIs('users.*') ? 'active' : '' }}">
                 <i class="bi bi-people"></i> Pengguna & Role
             </a>

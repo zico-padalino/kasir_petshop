@@ -172,6 +172,7 @@ a { text-decoration: none; color: inherit; }
 
 .alert-success { background: var(--success-bg); color: var(--success-text); border: 1px solid #c3e6cb; }
 .alert-danger { background: var(--danger-bg); color: var(--danger-text); border: 1px solid #f5c6cb; }
+.alert-info { background: #e8f7fa; color: #0c5460; border: 1px solid #bee5eb; }
 
 .alert-custom .alert-icon { font-size: 20px; margin-top: 1px; }
 .alert-custom .alert-body strong { display: block; margin-bottom: 2px; }

@@ -26,7 +26,7 @@ const MENU = [
     group: 'Pengaturan',
     items: [
       { to: '/categories', icon: 'bi-tags', label: 'Kategori Barang', roles: ['admin'] },
-      { to: '/users', icon: 'bi-people', label: 'Pengguna', roles: ['admin'] },
+      { to: '/users', icon: 'bi-people', label: 'Pengguna', roles: ['admin', 'owner'] },
     ],
   },
 ]

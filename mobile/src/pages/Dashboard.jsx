@@ -83,7 +83,7 @@ const ACTIONS = [
     title: 'Pengguna',
     desc: 'Akun karyawan toko',
     color: 'green',
-    roles: ['admin'],
+    roles: ['admin', 'owner'],
   },
 ]
 

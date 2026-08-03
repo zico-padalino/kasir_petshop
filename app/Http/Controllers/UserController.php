@@ -11,15 +11,19 @@ class UserController extends Controller
     public function index()
     {
         $users = DB::select("
-            SELECT u.id, u.name, u.email, u.is_active, u.created_at, r.name AS role_name, r.slug AS role_slug
+            SELECT u.id, u.name, u.email, u.role_id, u.is_active, u.created_at, r.name AS role_name, r.slug AS role_slug
             FROM users u
             LEFT JOIN roles r ON r.id = u.role_id
             ORDER BY u.name
         ");
 
-        $roles = DB::select('SELECT id, name, slug FROM roles ORDER BY id');
+        $roles = DB::select('SELECT id, name, slug, description FROM roles ORDER BY id');
+        $isAdmin = (auth()->user()->role_slug ?? '') === 'admin';
+        if ($isAdmin) {
+            $roles = array_values(array_filter($roles, fn ($r) => $r->slug !== 'owner'));
+        }
 
-        return view('users.index', compact('users', 'roles'));
+        return view('users.index', compact('users', 'roles', 'isAdmin'));
     }
 
     public function store(Request $request)
@@ -30,6 +34,10 @@ class UserController extends Controller
             'password' => 'required|string|min:6',
             'role_id' => 'required|integer',
         ]);
+
+        if ($msg = $this->denyAdminOwnerAction((int) $data['role_id'])) {
+            return back()->with('error', $msg)->withInput();
+        }
 
         DB::insert("
             INSERT INTO users (name, email, password, role_id, is_active, created_at, updated_at)
@@ -53,6 +61,25 @@ class UserController extends Controller
             'role_id' => 'required|integer',
             'is_active' => 'nullable|boolean',
         ]);
+
+        $target = DB::selectOne("
+            SELECT u.id, r.slug AS role_slug
+            FROM users u
+            LEFT JOIN roles r ON r.id = u.role_id
+            WHERE u.id = ?
+        ", [$id]);
+
+        if (! $target) {
+            return back()->with('error', 'Pengguna tidak ditemukan.');
+        }
+
+        if ($this->isAdmin() && $target->role_slug === 'owner') {
+            return back()->with('error', 'Admin tidak dapat mengubah akun Owner.');
+        }
+
+        if ($msg = $this->denyAdminOwnerAction((int) $data['role_id'])) {
+            return back()->with('error', $msg)->withInput();
+        }
 
         $exists = DB::selectOne(
             'SELECT id FROM users WHERE email = ? AND id != ?',
@@ -97,8 +124,42 @@ class UserController extends Controller
             return back()->with('error', 'Tidak bisa menghapus akun sendiri.');
         }
 
+        $target = DB::selectOne("
+            SELECT u.id, r.slug AS role_slug
+            FROM users u
+            LEFT JOIN roles r ON r.id = u.role_id
+            WHERE u.id = ?
+        ", [$id]);
+
+        if (! $target) {
+            return back()->with('error', 'Pengguna tidak ditemukan.');
+        }
+
+        if ($this->isAdmin() && $target->role_slug === 'owner') {
+            return back()->with('error', 'Admin tidak dapat menghapus akun Owner.');
+        }
+
         DB::delete('DELETE FROM users WHERE id = ?', [$id]);
 
         return back()->with('success', 'Pengguna berhasil dihapus.');
+    }
+
+    private function isAdmin(): bool
+    {
+        return (auth()->user()->role_slug ?? '') === 'admin';
+    }
+
+    private function denyAdminOwnerAction(int $roleId): ?string
+    {
+        if (! $this->isAdmin()) {
+            return null;
+        }
+
+        $role = DB::selectOne('SELECT slug FROM roles WHERE id = ?', [$roleId]);
+        if ($role && $role->slug === 'owner') {
+            return 'Admin tidak dapat menambah / menetapkan role Owner.';
+        }
+
+        return null;
     }
 }

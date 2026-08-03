@@ -758,8 +758,14 @@ export function getUsers() {
   })
 }
 
-export function createUser(data) {
+export function createUser(data, actor = null) {
   const db = load()
+  const roleId = Number(data.role_id)
+  const role = db.roles.find((r) => r.id === roleId)
+  if (!role) return { ok: false, message: 'Role tidak valid.' }
+  if (actor?.role_slug === 'admin' && role.slug === 'owner') {
+    return { ok: false, message: 'Admin tidak dapat menambah akun Owner.' }
+  }
   if (db.users.some((u) => u.email.toLowerCase() === data.email.toLowerCase().trim())) {
     return { ok: false, message: 'Email sudah digunakan.' }
   }
@@ -767,30 +773,37 @@ export function createUser(data) {
   const id = nextId(db.users)
   db.users.push({
     id,
-    role_id: Number(data.role_id),
+    role_id: roleId,
     name: data.name.trim(),
     email: data.email.trim(),
     password: data.password,
     is_active: 1,
   })
-  pushLog(db, { action: 'create', module: 'user', description: `Menambah pengguna "${data.name.trim()}"` })
+  pushLog(db, { user: actor, action: 'create', module: 'user', description: `Menambah pengguna "${data.name.trim()}"` })
   save(db)
   return { ok: true, message: 'Pengguna berhasil ditambahkan.' }
 }
 
-export function updateUser(id, data) {
+export function updateUser(id, data, actor = null) {
   const db = load()
   const user = db.users.find((u) => u.id === Number(id))
   if (!user) return { ok: false, message: 'Pengguna tidak ditemukan.' }
+  const currentRole = db.roles.find((r) => r.id === user.role_id)
+  const nextRoleId = Number(data.role_id)
+  const nextRole = db.roles.find((r) => r.id === nextRoleId)
+  if (!nextRole) return { ok: false, message: 'Role tidak valid.' }
+  if (actor?.role_slug === 'admin' && (currentRole?.slug === 'owner' || nextRole.slug === 'owner')) {
+    return { ok: false, message: 'Admin tidak dapat mengubah akun / role Owner.' }
+  }
   if (db.users.some((u) => u.email.toLowerCase() === data.email.toLowerCase().trim() && u.id !== Number(id))) {
     return { ok: false, message: 'Email sudah digunakan pengguna lain.' }
   }
   user.name = data.name.trim()
   user.email = data.email.trim()
-  user.role_id = Number(data.role_id)
+  user.role_id = nextRoleId
   user.is_active = data.is_active ? 1 : 0
   if (data.password) user.password = data.password
-  pushLog(db, { action: 'update', module: 'user', description: `Mengubah pengguna "${user.name}"` })
+  pushLog(db, { user: actor, action: 'update', module: 'user', description: `Mengubah pengguna "${user.name}"` })
   save(db)
   return { ok: true, message: 'Pengguna berhasil diperbarui.' }
 }
@@ -801,6 +814,11 @@ export function deleteUser(id, currentUser) {
     return { ok: false, message: 'Anda tidak dapat menghapus akun sendiri.' }
   }
   const target = db.users.find((u) => u.id === Number(id))
+  if (!target) return { ok: false, message: 'Pengguna tidak ditemukan.' }
+  const targetRole = db.roles.find((r) => r.id === target.role_id)
+  if (currentUser?.role_slug === 'admin' && targetRole?.slug === 'owner') {
+    return { ok: false, message: 'Admin tidak dapat menghapus akun Owner.' }
+  }
   db.users = db.users.filter((u) => u.id !== Number(id))
   pushLog(db, { user: currentUser, action: 'delete', module: 'user', description: `Menghapus pengguna "${target?.name || id}"` })
   save(db)
