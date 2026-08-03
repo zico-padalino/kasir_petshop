@@ -3,6 +3,11 @@
 @section('page-title', 'Kasir / POS')
 
 @section('content')
+<div id="heldOrdersBox" class="card held-orders-card" style="display:none">
+    <div class="card-header"><span><i class="bi bi-pause-circle"></i> Pesanan Ditahan (<span id="heldCount">0</span>)</span></div>
+    <div class="card-body" style="padding:0" id="heldOrdersList"></div>
+</div>
+
 <div class="pos-layout">
     <div>
         {{-- Filter kategori cepat --}}
@@ -58,6 +63,10 @@
                 <i class="bi bi-trash"></i> Kosongkan
             </button>
         </div>
+        <div class="cart-customer">
+            <label class="form-label" style="font-size:12px;margin-bottom:4px">Pelanggan aktif</label>
+            <input type="text" id="activeCustomer" class="form-control" placeholder="Nama pelanggan (wajib untuk tahan pesanan)">
+        </div>
         <div class="cart-items" id="cartItems">
             <div class="empty-state" style="padding:20px"><i class="bi bi-cart"></i>Keranjang kosong<br><small>Klik produk untuk menambahkan</small></div>
         </div>
@@ -75,8 +84,32 @@
             <div class="cart-total">
                 <span>Total</span><span id="totalDisplay">Rp 0</span>
             </div>
-            <button class="btn btn-success" style="width:100%;justify-content:center;padding:12px;margin-top:8px" onclick="openCheckout()" id="checkoutBtn" disabled>
-                <i class="bi bi-credit-card"></i> Bayar (F2)
+            <div class="cart-actions">
+                <button class="btn btn-outline" style="width:100%;justify-content:center;padding:10px" onclick="holdCurrentOrder()" id="holdBtn" disabled>
+                    <i class="bi bi-pause-circle"></i> Tahan Pesanan
+                </button>
+                <button class="btn btn-success" style="width:100%;justify-content:center;padding:12px" onclick="openCheckout()" id="checkoutBtn" disabled>
+                    <i class="bi bi-credit-card"></i> Bayar (F2)
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- Modal Pindah Pelanggan --}}
+<div class="modal-overlay" id="transferModal">
+    <div class="modal-box">
+        <h3 style="margin-top:0"><i class="bi bi-arrow-left-right"></i> Pindah Pesanan</h3>
+        <p style="color:#666;font-size:14px" id="transferInfo"></p>
+        <input type="hidden" id="transferId">
+        <div class="form-group">
+            <label class="form-label">Nama pelanggan baru *</label>
+            <input type="text" id="transferNewName" class="form-control" placeholder="Contoh: Pelanggan B">
+        </div>
+        <div style="display:flex;gap:10px;margin-top:16px">
+            <button class="btn btn-outline" style="flex:1;justify-content:center" onclick="closeTransfer()">Batal</button>
+            <button class="btn btn-primary" style="flex:1;justify-content:center" onclick="submitTransfer()">
+                <i class="bi bi-check-lg"></i> Pindahkan
             </button>
         </div>
     </div>
@@ -147,6 +180,15 @@
 <script>
 let cart = [];
 let lastTransactionId = null;
+const HELD_KEY = 'kasir_dzikra_held_orders';
+
+function loadHeld() {
+    try { return JSON.parse(sessionStorage.getItem(HELD_KEY) || '[]'); }
+    catch { return []; }
+}
+function saveHeld(list) {
+    sessionStorage.setItem(HELD_KEY, JSON.stringify(list));
+}
 
 function addToCart(el) {
     const id = parseInt(el.dataset.id);
@@ -172,6 +214,7 @@ function removeFromCart(id) {
 function clearCart() {
     if (cart.length && !confirm('Kosongkan keranjang?')) return;
     cart = [];
+    document.getElementById('discountInput').value = '';
     renderCart();
 }
 
@@ -189,10 +232,11 @@ function renderCart() {
     const count = cart.reduce((s, i) => s + i.qty, 0);
     document.getElementById('cartCount').textContent = count;
     document.getElementById('clearCartBtn').style.display = cart.length ? 'inline-flex' : 'none';
+    document.getElementById('holdBtn').disabled = !cart.length;
+    document.getElementById('checkoutBtn').disabled = !cart.length;
 
     if (cart.length === 0) {
         container.innerHTML = '<div class="empty-state" style="padding:20px"><i class="bi bi-cart"></i>Keranjang kosong<br><small>Klik produk untuk menambahkan</small></div>';
-        document.getElementById('checkoutBtn').disabled = true;
         updateTotal();
         return;
     }
@@ -212,7 +256,6 @@ function renderCart() {
         </div>
     `).join('');
 
-    document.getElementById('checkoutBtn').disabled = false;
     updateTotal();
 }
 
@@ -229,8 +272,119 @@ function updateTotal() {
     calcChange();
 }
 
+function holdCurrentOrder() {
+    if (!cart.length) return;
+    const name = document.getElementById('activeCustomer').value.trim();
+    if (!name) { alert('Isi nama pelanggan dulu sebelum menahan pesanan.'); document.getElementById('activeCustomer').focus(); return; }
+    const discount = parseRupiah(document.getElementById('discountInput').value);
+    const list = loadHeld();
+    const id = (list.reduce((m, o) => Math.max(m, o.id), 0) || 0) + 1;
+    const subtotal = getSubtotal();
+    list.push({
+        id,
+        customer_name: name,
+        items: cart.map(i => ({ ...i })),
+        discount,
+        subtotal,
+        total: Math.max(0, subtotal - discount),
+        item_count: cart.reduce((s, i) => s + i.qty, 0),
+        created_at: new Date().toISOString(),
+    });
+    saveHeld(list);
+    cart = [];
+    document.getElementById('discountInput').value = '';
+    document.getElementById('activeCustomer').value = '';
+    renderCart();
+    renderHeld();
+    alert('Pesanan "' + name + '" ditahan. Silakan layani pelanggan lain.');
+}
+
+function renderHeld() {
+    const list = loadHeld();
+    const box = document.getElementById('heldOrdersBox');
+    const wrap = document.getElementById('heldOrdersList');
+    document.getElementById('heldCount').textContent = list.length;
+    if (!list.length) {
+        box.style.display = 'none';
+        wrap.innerHTML = '';
+        return;
+    }
+    box.style.display = 'block';
+    wrap.innerHTML = list.slice().reverse().map(o => `
+        <div class="held-order-row">
+            <div class="held-order-info">
+                <strong>${escapeHtml(o.customer_name)}</strong>
+                <div class="held-order-meta">${o.item_count} item · ${formatRupiah(o.total)}</div>
+            </div>
+            <div class="held-order-actions">
+                <button type="button" class="btn btn-sm btn-primary" onclick="resumeHeld(${o.id})"><i class="bi bi-play-fill"></i> Lanjut</button>
+                <button type="button" class="btn btn-sm btn-outline" onclick="openTransfer(${o.id})"><i class="bi bi-arrow-left-right"></i> Pindah</button>
+                <button type="button" class="btn btn-sm btn-danger" onclick="deleteHeld(${o.id})"><i class="bi bi-trash"></i></button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function resumeHeld(id) {
+    if (cart.length && !confirm('Keranjang masih berisi. Lanjutkan pesanan ditahan? Keranjang saat ini akan diganti.')) return;
+    const list = loadHeld();
+    const order = list.find(o => o.id === id);
+    if (!order) return;
+    cart = order.items.map(i => ({ ...i }));
+    setRupiahValue(document.getElementById('discountInput'), order.discount || 0);
+    document.getElementById('activeCustomer').value = order.customer_name || '';
+    saveHeld(list.filter(o => o.id !== id));
+    renderCart();
+    renderHeld();
+}
+
+function openTransfer(id) {
+    const order = loadHeld().find(o => o.id === id);
+    if (!order) return;
+    document.getElementById('transferId').value = id;
+    document.getElementById('transferNewName').value = '';
+    document.getElementById('transferInfo').innerHTML =
+        'Pesanan <strong>' + escapeHtml(order.customer_name) + '</strong> (' + order.item_count + ' item · ' + formatRupiah(order.total) + ') belum selesai. Pindahkan ke pelanggan lain.';
+    document.getElementById('transferModal').classList.add('show');
+    document.getElementById('transferNewName').focus();
+}
+
+function closeTransfer() {
+    document.getElementById('transferModal').classList.remove('show');
+}
+
+function submitTransfer() {
+    const id = parseInt(document.getElementById('transferId').value);
+    const next = document.getElementById('transferNewName').value.trim();
+    if (!next) { alert('Nama pelanggan baru wajib diisi.'); return; }
+    const list = loadHeld();
+    const order = list.find(o => o.id === id);
+    if (!order) return;
+    if (next.toLowerCase() === String(order.customer_name).toLowerCase()) {
+        alert('Nama pelanggan baru sama dengan sebelumnya.');
+        return;
+    }
+    const prev = order.customer_name;
+    order.customer_name = next;
+    saveHeld(list);
+    closeTransfer();
+    renderHeld();
+    alert('Pesanan dipindah: ' + prev + ' → ' + next);
+}
+
+function deleteHeld(id) {
+    if (!confirm('Buang pesanan ditahan ini?')) return;
+    saveHeld(loadHeld().filter(o => o.id !== id));
+    renderHeld();
+}
+
 function openCheckout() {
     if (!cart.length) return;
+    document.getElementById('customerName').value = document.getElementById('activeCustomer').value.trim();
     document.getElementById('checkoutModal').classList.add('show');
     setRupiahValue(document.getElementById('cashReceived'), Math.ceil(getTotal() / 1000) * 1000 || 0);
     calcChange();
@@ -317,21 +471,26 @@ function closeSuccess() {
     lastTransactionId = null;
     document.getElementById('discountInput').value = '';
     document.getElementById('customerName').value = '';
+    document.getElementById('activeCustomer').value = '';
     document.getElementById('notes').value = '';
     setRupiahValue(document.getElementById('cashReceived'), 0);
     renderCart();
     location.reload();
 }
 
-// Keyboard shortcuts
 document.addEventListener('keydown', e => {
     if (e.key === 'F2' && cart.length) { e.preventDefault(); openCheckout(); }
-    if (e.key === 'Escape') { closeCheckout(); document.getElementById('successModal').classList.remove('show'); }
+    if (e.key === 'Escape') {
+        closeCheckout();
+        closeTransfer();
+        document.getElementById('successModal').classList.remove('show');
+    }
 });
 
-// Enter on search = submit
 document.getElementById('searchInput')?.addEventListener('keydown', e => {
     if (e.key === 'Enter') e.target.closest('form').submit();
 });
+
+renderHeld();
 </script>
 @endpush

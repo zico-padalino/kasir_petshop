@@ -1,8 +1,19 @@
 import { useState, useMemo, useEffect, useRef, lazy, Suspense } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getPosProducts, getCategories, checkout, findProductByScan } from '../db/store'
+import {
+  getPosProducts,
+  getCategories,
+  checkout,
+  findProductByScan,
+  getHeldOrders,
+  holdOrder,
+  resumeHeldOrder,
+  transferHeldOrder,
+  deleteHeldOrder,
+} from '../db/store'
 import { useAuth } from '../context/AuthContext'
-import { rupiah, formatRupiah } from '../utils/format'
+import { useToast } from '../context/ToastContext'
+import { rupiah, formatRupiah, dateTimeShort } from '../utils/format'
 import RupiahInput from '../components/RupiahInput'
 
 const BarcodeScanner = lazy(() => import('../components/BarcodeScanner'))
@@ -36,24 +47,30 @@ function beepOk() {
 
 export default function Pos() {
   const { user } = useAuth()
+  const toast = useToast()
   const navigate = useNavigate()
   const categories = useMemo(() => getCategories(), [])
   const [categoryId, setCategoryId] = useState('')
   const [search, setSearch] = useState('')
   const [reloadKey, setReloadKey] = useState(0)
+  const [heldKey, setHeldKey] = useState(0)
 
   const products = useMemo(
     () => getPosProducts({ search, categoryId }),
     [search, categoryId, reloadKey]
   )
+  const heldOrders = useMemo(() => getHeldOrders(), [heldKey])
 
   const [cart, setCart] = useState([])
+  const [customerName, setCustomerName] = useState('')
   const [discount, setDiscount] = useState(0)
   const [checkoutOpen, setCheckoutOpen] = useState(false)
   const [success, setSuccess] = useState(null)
   const [scanCode, setScanCode] = useState('')
   const [scanMsg, setScanMsg] = useState(null)
   const [cameraOpen, setCameraOpen] = useState(false)
+  const [transferTarget, setTransferTarget] = useState(null)
+  const [transferName, setTransferName] = useState('')
   const cartRef = useRef(null)
   const scanInputRef = useRef(null)
 
@@ -95,7 +112,6 @@ export default function Pos() {
     }
     addToCart(res.product, { fromScan: true })
     setScanCode('')
-    // fokus kembali untuk scanner USB berikutnya
     requestAnimationFrame(() => scanInputRef.current?.focus())
   }
 
@@ -127,6 +143,67 @@ export default function Pos() {
   function clearCart() {
     if (cart.length && !confirm('Kosongkan keranjang?')) return
     setCart([])
+    setDiscount(0)
+  }
+
+  function handleHold() {
+    const res = holdOrder(
+      { customer_name: customerName, items: cart, discount },
+      user
+    )
+    if (!res.ok) {
+      toast.error(res.message)
+      return
+    }
+    toast.success(res.message)
+    setCart([])
+    setDiscount(0)
+    setCustomerName('')
+    setHeldKey((k) => k + 1)
+    requestAnimationFrame(() => scanInputRef.current?.focus())
+  }
+
+  function handleResume(id) {
+    if (cart.length) {
+      if (!confirm('Keranjang masih berisi. Lanjutkan pesanan ditahan? Keranjang saat ini akan diganti.')) return
+    }
+    const res = resumeHeldOrder(id)
+    if (!res.ok) {
+      toast.error(res.message)
+      return
+    }
+    setCart(res.order.items)
+    setDiscount(res.order.discount || 0)
+    setCustomerName(res.order.customer_name || '')
+    setHeldKey((k) => k + 1)
+    toast.success(res.message)
+    scrollToCart()
+  }
+
+  function openTransfer(order) {
+    setTransferTarget(order)
+    setTransferName('')
+  }
+
+  function submitTransfer(e) {
+    e.preventDefault()
+    if (!transferTarget) return
+    const res = transferHeldOrder(transferTarget.id, transferName, user)
+    if (!res.ok) {
+      toast.error(res.message)
+      return
+    }
+    toast.success(res.message)
+    setTransferTarget(null)
+    setTransferName('')
+    setHeldKey((k) => k + 1)
+  }
+
+  function handleDeleteHeld(id) {
+    if (!confirm('Buang pesanan ditahan ini?')) return
+    const res = deleteHeldOrder(id, user)
+    res.ok ? toast.success(res.message) : toast.error(res.message)
+    setHeldKey((k) => k + 1)
   }
 
   useEffect(() => {
@@ -149,6 +226,7 @@ export default function Pos() {
         setCheckoutOpen(false)
         setSuccess(null)
         setCameraOpen(false)
+        setTransferTarget(null)
       }
     }
     window.addEventListener('keydown', onKey)
@@ -163,7 +241,7 @@ export default function Pos() {
     <>
       <h1 className="page-title">Jual Barang</h1>
       <p style={{ margin: '-12px 0 16px', color: '#666', fontSize: 13 }}>
-        Scan barcode / SKU, atau ketuk barang — lalu bayar
+        Scan barcode / SKU, atau ketuk barang — tahan pesanan jika pelanggan belum bayar
       </p>
 
       {!window.isSecureContext && (
@@ -180,50 +258,77 @@ export default function Pos() {
         <div className="scan-bar-icon"><i className="bi bi-upc-scan"></i></div>
         <input
           ref={scanInputRef}
-          type="text"
-          className="form-control scan-input"
-          placeholder="Scan barcode / ketik SKU lalu Enter (F3)"
+          className="scan-input form-control"
           value={scanCode}
           onChange={(e) => setScanCode(e.target.value)}
+          placeholder="Scan barcode / ketik SKU lalu Enter (F3)"
           autoComplete="off"
-          inputMode="text"
         />
-        <button type="submit" className="btn btn-primary btn-sm" disabled={!scanCode.trim()}>
-          Tambah
-        </button>
+        <button type="submit" className="btn btn-primary">Cari</button>
         <button
           type="button"
-          className="btn btn-outline btn-sm"
+          className="btn btn-outline"
+          title="Scan kamera"
           onClick={() => setCameraOpen(true)}
-          title="Scan dengan kamera (butuh HTTPS)"
           disabled={!window.isSecureContext}
         >
-          <i className="bi bi-camera"></i> Kamera
+          <i className="bi bi-camera"></i>
         </button>
       </form>
 
       {scanMsg && (
-        <div className={`scan-feedback ${scanMsg.type === 'ok' ? 'ok' : 'err'}`}>
-          {scanMsg.type === 'ok' ? <i className="bi bi-check-circle-fill"></i> : <i className="bi bi-exclamation-circle-fill"></i>}
-          {scanMsg.text}
+        <div className={`alert-custom ${scanMsg.type === 'ok' ? 'alert-success' : 'alert-danger'}`} style={{ marginBottom: 12 }}>
+          <div className="alert-body">{scanMsg.text}</div>
+        </div>
+      )}
+
+      {heldOrders.length > 0 && (
+        <div className="card held-orders-card">
+          <div className="card-header">
+            <span><i className="bi bi-pause-circle"></i> Pesanan Ditahan ({heldOrders.length})</span>
+          </div>
+          <div className="card-body" style={{ padding: 0 }}>
+            {heldOrders.map((o) => (
+              <div className="held-order-row" key={o.id}>
+                <div className="held-order-info">
+                  <strong>{o.customer_name}</strong>
+                  <div className="held-order-meta">
+                    {o.item_count} item · {rupiah(o.total)}
+                    {o.created_at ? ` · ${dateTimeShort(o.created_at)}` : ''}
+                  </div>
+                </div>
+                <div className="held-order-actions">
+                  <button type="button" className="btn btn-sm btn-primary" onClick={() => handleResume(o.id)} title="Lanjutkan">
+                    <i className="bi bi-play-fill"></i> Lanjut
+                  </button>
+                  <button type="button" className="btn btn-sm btn-outline" onClick={() => openTransfer(o)} title="Pindah ke pelanggan lain">
+                    <i className="bi bi-arrow-left-right"></i> Pindah
+                  </button>
+                  <button type="button" className="btn btn-sm btn-danger" onClick={() => handleDeleteHeld(o.id)} title="Buang">
+                    <i className="bi bi-trash"></i>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
       <div className="pos-layout">
         <div>
           <div className="category-tabs">
-            <button className={`category-tab ${!categoryId ? 'active' : ''}`} onClick={() => setCategoryId('')}>Semua</button>
+            <button type="button" className={`category-tab ${!categoryId ? 'active' : ''}`} onClick={() => setCategoryId('')}>Semua</button>
             {categories.map((c) => (
               <button
                 key={c.id}
-                className={`category-tab ${categoryId === c.id ? 'active' : ''}`}
+                type="button"
+                className={`category-tab ${String(categoryId) === String(c.id) ? 'active' : ''}`}
                 onClick={() => setCategoryId(c.id)}
               >
                 {c.name}
               </button>
             ))}
           </div>
-
           <div className="search-bar">
             <input
               type="text"
@@ -233,8 +338,7 @@ export default function Pos() {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-
-          {products.length ? (
+          {products.length > 0 ? (
             <div className="product-grid">
               {products.map((p) => (
                 <div key={p.id} className="product-card" onClick={() => addToCart(p)}>
@@ -258,6 +362,16 @@ export default function Pos() {
                 <i className="bi bi-trash"></i> Kosongkan
               </button>
             )}
+          </div>
+          <div className="cart-customer">
+            <label className="form-label" style={{ fontSize: 12, marginBottom: 4 }}>Pelanggan aktif</label>
+            <input
+              type="text"
+              className="form-control"
+              value={customerName}
+              onChange={(e) => setCustomerName(e.target.value)}
+              placeholder="Nama pelanggan (wajib untuk tahan pesanan)"
+            />
           </div>
           <div className="cart-items">
             {cart.length === 0 ? (
@@ -293,14 +407,26 @@ export default function Pos() {
               <RupiahInput value={discount} onChange={setDiscount} />
             </div>
             <div className="cart-total"><span>Total</span><span>{rupiah(total)}</span></div>
-            <button
-              className="btn btn-success"
-              style={{ width: '100%', justifyContent: 'center', padding: 12, marginTop: 8 }}
-              onClick={() => setCheckoutOpen(true)}
-              disabled={!cart.length}
-            >
-              <i className="bi bi-credit-card"></i> Bayar (F2)
-            </button>
+            <div className="cart-actions">
+              <button
+                type="button"
+                className="btn btn-outline"
+                style={{ width: '100%', justifyContent: 'center', padding: 10 }}
+                onClick={handleHold}
+                disabled={!cart.length}
+                title="Tahan pesanan pelanggan ini, layani pelanggan lain"
+              >
+                <i className="bi bi-pause-circle"></i> Tahan Pesanan
+              </button>
+              <button
+                className="btn btn-success"
+                style={{ width: '100%', justifyContent: 'center', padding: 12 }}
+                onClick={() => setCheckoutOpen(true)}
+                disabled={!cart.length}
+              >
+                <i className="bi bi-credit-card"></i> Bayar (F2)
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -333,12 +459,45 @@ export default function Pos() {
           discount={Number(discount) || 0}
           cart={cart}
           user={user}
+          initialCustomer={customerName}
           onClose={() => setCheckoutOpen(false)}
           onSuccess={(res) => {
             setCheckoutOpen(false)
             setSuccess(res)
           }}
         />
+      )}
+
+      {transferTarget && (
+        <div className="modal-overlay show" onClick={(e) => e.target === e.currentTarget && setTransferTarget(null)}>
+          <div className="modal-box">
+            <h3 style={{ marginTop: 0 }}><i className="bi bi-arrow-left-right"></i> Pindah Pesanan</h3>
+            <p style={{ color: '#666', fontSize: 14, marginTop: 0 }}>
+              Pesanan <strong>{transferTarget.customer_name}</strong> ({transferTarget.item_count} item · {rupiah(transferTarget.total)})
+              belum selesai. Pindahkan ke pelanggan lain.
+            </p>
+            <form onSubmit={submitTransfer}>
+              <div className="form-group">
+                <label className="form-label">Nama pelanggan baru *</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  value={transferName}
+                  onChange={(e) => setTransferName(e.target.value)}
+                  placeholder="Contoh: Pelanggan B"
+                  autoFocus
+                  required
+                />
+              </div>
+              <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+                <button type="button" className="btn btn-outline" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setTransferTarget(null)}>Batal</button>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>
+                  <i className="bi bi-check-lg"></i> Pindahkan
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       {success && (
@@ -361,6 +520,7 @@ export default function Pos() {
                   setSuccess(null)
                   setCart([])
                   setDiscount(0)
+                  setCustomerName('')
                   setReloadKey((k) => k + 1)
                   requestAnimationFrame(() => scanInputRef.current?.focus())
                 }}
@@ -375,8 +535,8 @@ export default function Pos() {
   )
 }
 
-function CheckoutModal({ total, discount, cart, user, onClose, onSuccess }) {
-  const [customerName, setCustomerName] = useState('')
+function CheckoutModal({ total, discount, cart, user, initialCustomer = '', onClose, onSuccess }) {
+  const [customerName, setCustomerName] = useState(initialCustomer || '')
   const [paymentMethod, setPaymentMethod] = useState('cash')
   const [cashReceived, setCashReceived] = useState(Math.ceil(total / 1000) * 1000 || 0)
   const [notes, setNotes] = useState('')

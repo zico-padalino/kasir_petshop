@@ -21,6 +21,7 @@ function ensureSchema(db) {
     const fresh = buildSeed()
     db.activity_logs = fresh.activity_logs || []
   }
+  if (!Array.isArray(db.held_orders)) db.held_orders = []
   // pastikan tiap produk punya barcode (untuk scan kasir)
   if (Array.isArray(db.products)) {
     db.products.forEach((p, i) => {
@@ -504,6 +505,95 @@ function generateInvoice(db) {
   const todayCount = db.transactions.filter((t) => t.invoice_number.startsWith(prefix)).length
   const seq = String(todayCount + 1).padStart(4, '0')
   return `${prefix}${seq}`
+}
+
+/* ============ HELD / PARKED ORDERS (belum bayar) ============ */
+
+export function getHeldOrders() {
+  return [...(load().held_orders || [])].sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
+}
+
+/** Tahan keranjang pelanggan A agar bisa layani pelanggan B */
+export function holdOrder({ customer_name, items, discount = 0 }, currentUser = null) {
+  const db = load()
+  if (!Array.isArray(db.held_orders)) db.held_orders = []
+  const name = String(customer_name || '').trim()
+  if (!name) return { ok: false, message: 'Isi nama pelanggan dulu sebelum menahan pesanan.' }
+  if (!items?.length) return { ok: false, message: 'Keranjang kosong.' }
+
+  const id = nextId(db.held_orders)
+  const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0)
+  const order = {
+    id,
+    customer_name: name,
+    items: items.map((i) => ({ ...i })),
+    discount: Number(discount) || 0,
+    subtotal,
+    total: Math.max(0, subtotal - (Number(discount) || 0)),
+    item_count: items.reduce((s, i) => s + i.qty, 0),
+    user_id: currentUser?.id ?? null,
+    created_at: nowIso(),
+  }
+  db.held_orders.push(order)
+  pushLog(db, {
+    user: currentUser,
+    action: 'hold',
+    module: 'pos',
+    description: `Menahan pesanan ${name} (${order.item_count} item)`,
+  })
+  save(db)
+  return { ok: true, message: `Pesanan "${name}" ditahan. Silakan layani pelanggan lain.`, order }
+}
+
+/** Lanjutkan pesanan ditahan ke keranjang aktif */
+export function resumeHeldOrder(id) {
+  const db = load()
+  const order = (db.held_orders || []).find((o) => o.id === Number(id))
+  if (!order) return { ok: false, message: 'Pesanan ditahan tidak ditemukan.' }
+  db.held_orders = db.held_orders.filter((o) => o.id !== Number(id))
+  save(db)
+  return {
+    ok: true,
+    message: `Pesanan "${order.customer_name}" dilanjutkan.`,
+    order,
+  }
+}
+
+/** Pindah pemesanan dari pelanggan A ke pelanggan B (belum bayar) */
+export function transferHeldOrder(id, newCustomerName, currentUser = null) {
+  const db = load()
+  const order = (db.held_orders || []).find((o) => o.id === Number(id))
+  if (!order) return { ok: false, message: 'Pesanan ditahan tidak ditemukan.' }
+  const next = String(newCustomerName || '').trim()
+  if (!next) return { ok: false, message: 'Nama pelanggan baru wajib diisi.' }
+  if (next.toLowerCase() === String(order.customer_name).toLowerCase()) {
+    return { ok: false, message: 'Nama pelanggan baru sama dengan sebelumnya.' }
+  }
+  const prev = order.customer_name
+  order.customer_name = next
+  pushLog(db, {
+    user: currentUser,
+    action: 'transfer',
+    module: 'pos',
+    description: `Memindah pesanan dari "${prev}" ke "${next}"`,
+  })
+  save(db)
+  return { ok: true, message: `Pesanan dipindah: ${prev} → ${next}`, order }
+}
+
+export function deleteHeldOrder(id, currentUser = null) {
+  const db = load()
+  const order = (db.held_orders || []).find((o) => o.id === Number(id))
+  if (!order) return { ok: false, message: 'Pesanan ditahan tidak ditemukan.' }
+  db.held_orders = db.held_orders.filter((o) => o.id !== Number(id))
+  pushLog(db, {
+    user: currentUser,
+    action: 'delete',
+    module: 'pos',
+    description: `Membuang pesanan ditahan "${order.customer_name}"`,
+  })
+  save(db)
+  return { ok: true, message: `Pesanan "${order.customer_name}" dibuang.` }
 }
 
 export function checkout(payload, currentUser) {

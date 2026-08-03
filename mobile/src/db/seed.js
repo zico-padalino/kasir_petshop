@@ -66,6 +66,7 @@ const BASE = {
   ],
 
   hotel_bookings: [],
+  held_orders: [],
 
   stock_opnames: [],
   stock_opname_items: [],
