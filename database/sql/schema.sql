@@ -66,3 +66,26 @@ CREATE INDEX idx_products_active ON products(is_active);
 CREATE INDEX idx_transactions_date ON transactions(created_at);
 CREATE INDEX idx_transactions_user ON transactions(user_id);
 CREATE INDEX idx_transaction_items_tx ON transaction_items(transaction_id);
+
+CREATE TABLE IF NOT EXISTS cash_drawer (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    balance DECIMAL(14, 2) NOT NULL DEFAULT 0,
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS cash_movements (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    type VARCHAR(30) NOT NULL,
+    direction VARCHAR(10) NOT NULL,
+    amount DECIMAL(14, 2) NOT NULL,
+    balance_after DECIMAL(14, 2) NOT NULL,
+    note VARCHAR(255) NULL,
+    reference VARCHAR(50) NULL,
+    user_id BIGINT UNSIGNED NULL,
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_cash_movements_date (created_at),
+    INDEX idx_cash_movements_type (type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+

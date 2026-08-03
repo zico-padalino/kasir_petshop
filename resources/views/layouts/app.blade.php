@@ -33,6 +33,9 @@
             <a href="{{ route('pos.index') }}" class="menu-item {{ request()->routeIs('pos.*') ? 'active' : '' }}">
                 <i class="bi bi-cart3"></i> Kasir / POS
             </a>
+            <a href="{{ route('cash-drawer.index') }}" class="menu-item {{ request()->routeIs('cash-drawer.*') ? 'active' : '' }}">
+                <i class="bi bi-safe"></i> Uang Kasir
+            </a>
             <a href="{{ route('transactions.index') }}" class="menu-item {{ request()->routeIs('transactions.*') ? 'active' : '' }}">
                 <i class="bi bi-receipt"></i> Riwayat Transaksi
             </a>

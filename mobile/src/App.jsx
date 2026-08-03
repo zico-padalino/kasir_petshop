@@ -21,6 +21,7 @@ import PetHotelRooms from './pages/PetHotelRooms'
 import StockOpname from './pages/StockOpname'
 import StockOpnameDetail from './pages/StockOpnameDetail'
 import ActivityLogs from './pages/ActivityLogs'
+import CashDrawer from './pages/CashDrawer'
 
 export default function App() {
   const { ready } = useAuth()
@@ -54,6 +55,14 @@ export default function App() {
           element={
             <ProtectedRoute roles={['admin', 'kasir', 'owner']}>
               <Pos />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/cash-drawer"
+          element={
+            <ProtectedRoute roles={['admin', 'kasir', 'owner']}>
+              <CashDrawer />
             </ProtectedRoute>
           }
         />

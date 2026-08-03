@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CashDrawerController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\PosController;
@@ -25,6 +26,9 @@ Route::middleware('auth')->group(function () {
     Route::middleware('role:admin,kasir,owner')->group(function () {
         Route::get('/pos', [PosController::class, 'index'])->name('pos.index');
         Route::post('/pos/checkout', [PosController::class, 'checkout'])->name('pos.checkout');
+
+        Route::get('/cash-drawer', [CashDrawerController::class, 'index'])->name('cash-drawer.index');
+        Route::post('/cash-drawer', [CashDrawerController::class, 'store'])->name('cash-drawer.store');
 
         Route::get('/transactions', [TransactionController::class, 'index'])->name('transactions.index');
         Route::get('/transactions/{id}/receipt', [TransactionController::class, 'receipt'])->name('transactions.receipt');

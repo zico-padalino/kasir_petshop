@@ -141,6 +141,16 @@ class PosController extends Controller
                 );
             }
 
+            if ($paymentMethod === 'cash' && $total > 0) {
+                CashDrawerController::recordMovement(
+                    'sale_cash',
+                    (float) $total,
+                    'Penjualan tunai '.$invoiceNumber,
+                    $invoiceNumber,
+                    Auth::id()
+                );
+            }
+
             DB::commit();
 
             return response()->json([

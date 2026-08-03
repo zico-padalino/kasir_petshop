@@ -22,6 +22,9 @@ function ensureSchema(db) {
     db.activity_logs = fresh.activity_logs || []
   }
   if (!Array.isArray(db.held_orders)) db.held_orders = []
+  if (!db.cash_drawer || !Array.isArray(db.cash_movements)) {
+    migrateCashDrawer(db)
+  }
   // pastikan tiap produk punya barcode (untuk scan kasir)
   if (Array.isArray(db.products)) {
     db.products.forEach((p, i) => {
@@ -73,6 +76,145 @@ function load() {
 
 function save(db) {
   localStorage.setItem(DB_KEY, JSON.stringify(db))
+}
+
+/** Migrasi / inisialisasi uang kasir dari penjualan tunai yang sudah ada */
+function migrateCashDrawer(db) {
+  if (db.cash_drawer && Array.isArray(db.cash_movements)) return
+
+  let balance = 0
+  const movements = []
+  let id = 1
+  const cashSales = (db.transactions || [])
+    .filter((t) => t.payment_method === 'cash' && Number(t.total) > 0)
+    .sort((a, b) => (a.created_at < b.created_at ? -1 : 1))
+
+  for (const t of cashSales) {
+    const amt = Math.round(Number(t.total) || 0)
+    if (amt <= 0) continue
+    balance += amt
+    movements.push({
+      id: id++,
+      type: 'sale_cash',
+      amount: amt,
+      direction: 'in',
+      balance_after: balance,
+      note: `Penjualan tunai ${t.invoice_number}`,
+      reference: t.invoice_number,
+      user_id: t.user_id ?? null,
+      created_at: t.created_at,
+    })
+  }
+
+  db.cash_drawer = { balance, updated_at: nowIso() }
+  db.cash_movements = movements
+}
+
+/**
+ * Catat pergerakan uang kasir.
+ * type: cash_in | cash_out | sale_cash | hotel_cash
+ */
+function applyCashMovement(db, { type, amount, note = null, reference = null, user = null, created_at = null }) {
+  if (!db.cash_drawer) db.cash_drawer = { balance: 0, updated_at: nowIso() }
+  if (!Array.isArray(db.cash_movements)) db.cash_movements = []
+
+  const amt = Math.round(Number(amount) || 0)
+  if (amt <= 0) return { ok: false, message: 'Nominal harus lebih dari 0.' }
+
+  const isOut = type === 'cash_out'
+  if (isOut && db.cash_drawer.balance < amt) {
+    return { ok: false, message: `Saldo kas tidak cukup. Saldo saat ini ${Math.round(db.cash_drawer.balance).toLocaleString('id-ID')}.` }
+  }
+
+  const signed = isOut ? -amt : amt
+  db.cash_drawer.balance = Math.round((Number(db.cash_drawer.balance) || 0) + signed)
+  db.cash_drawer.updated_at = nowIso()
+
+  const movement = {
+    id: nextId(db.cash_movements),
+    type,
+    amount: amt,
+    direction: isOut ? 'out' : 'in',
+    balance_after: db.cash_drawer.balance,
+    note: note ? String(note).trim() : null,
+    reference: reference || null,
+    user_id: user?.id ?? null,
+    created_at: created_at || nowIso(),
+  }
+  db.cash_movements.push(movement)
+  return { ok: true, movement, balance: db.cash_drawer.balance }
+}
+
+export function getCashDrawer() {
+  const db = load()
+  const today = todayStr()
+  const movs = db.cash_movements || []
+  const todayMovs = movs.filter((m) => String(m.created_at || '').startsWith(today))
+  const sumBy = (pred) => todayMovs.filter(pred).reduce((s, m) => s + (Number(m.amount) || 0), 0)
+
+  return {
+    balance: Math.round(Number(db.cash_drawer?.balance) || 0),
+    updated_at: db.cash_drawer?.updated_at || null,
+    today: {
+      cash_in: sumBy((m) => m.type === 'cash_in'),
+      cash_out: sumBy((m) => m.type === 'cash_out'),
+      sales: sumBy((m) => m.type === 'sale_cash'),
+      hotel: sumBy((m) => m.type === 'hotel_cash'),
+    },
+  }
+}
+
+export function getCashMovements({ limit = 100 } = {}) {
+  const db = load()
+  return [...(db.cash_movements || [])]
+    .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
+    .slice(0, limit)
+    .map((m) => {
+      const u = db.users.find((x) => x.id === m.user_id)
+      return { ...m, user_name: u?.name || '-' }
+    })
+}
+
+/** Setor / masukkan uang ke laci kasir */
+export function cashIn({ amount, note = '' }, currentUser = null) {
+  const db = load()
+  const res = applyCashMovement(db, {
+    type: 'cash_in',
+    amount,
+    note: note || 'Setor uang kasir',
+    user: currentUser,
+  })
+  if (!res.ok) return res
+  pushLog(db, {
+    user: currentUser,
+    action: 'cash_in',
+    module: 'cash',
+    description: `${currentUser?.name || 'Kasir'} setor uang kas Rp ${Math.round(amount).toLocaleString('id-ID')}`,
+    meta: { amount: Math.round(Number(amount) || 0) },
+  })
+  save(db)
+  return { ok: true, message: `Berhasil setor ${Math.round(amount).toLocaleString('id-ID')}. Saldo: ${res.balance.toLocaleString('id-ID')}`, balance: res.balance }
+}
+
+/** Keluarkan uang dari laci kasir */
+export function cashOut({ amount, note = '' }, currentUser = null) {
+  const db = load()
+  const res = applyCashMovement(db, {
+    type: 'cash_out',
+    amount,
+    note: note || 'Tarik uang kasir',
+    user: currentUser,
+  })
+  if (!res.ok) return res
+  pushLog(db, {
+    user: currentUser,
+    action: 'cash_out',
+    module: 'cash',
+    description: `${currentUser?.name || 'Kasir'} tarik uang kas Rp ${Math.round(amount).toLocaleString('id-ID')}`,
+    meta: { amount: Math.round(Number(amount) || 0) },
+  })
+  save(db)
+  return { ok: true, message: `Berhasil tarik ${Math.round(amount).toLocaleString('id-ID')}. Saldo: ${res.balance.toLocaleString('id-ID')}`, balance: res.balance }
 }
 
 export function resetDatabase() {
@@ -675,6 +817,18 @@ export function checkout(payload, currentUser) {
     description: `${currentUser?.name || 'Kasir'} mencatat penjualan ${invoice_number} sebesar Rp ${Math.round(total).toLocaleString('id-ID')}`,
     meta: { invoice_number, total, payment_method },
   })
+
+  if (payment_method === 'cash' && total > 0) {
+    applyCashMovement(db, {
+      type: 'sale_cash',
+      amount: total,
+      note: `Penjualan tunai ${invoice_number}`,
+      reference: invoice_number,
+      user: currentUser,
+      created_at,
+    })
+  }
+
   save(db)
   return { success: true, transaction_id: txId, invoice_number, total, change_amount }
 }
@@ -1235,6 +1389,15 @@ export function checkOutHotelBooking(id, { payment_method = 'cash', payment_stat
     description: `Check-out hewan ${b.pet_name} (${b.booking_number}), total Rp ${Math.round(b.total).toLocaleString('id-ID')}`,
     meta: { booking_number: b.booking_number, total: b.total },
   })
+  if (payment_method === 'cash' && payment_status === 'paid' && Number(b.total) > 0) {
+    applyCashMovement(db, {
+      type: 'hotel_cash',
+      amount: b.total,
+      note: `Titip hewan tunai ${b.booking_number} (${b.pet_name})`,
+      reference: b.booking_number,
+      created_at: b.actual_check_out,
+    })
+  }
   save(db)
   return { ok: true, message: `${b.pet_name} berhasil check-out.`, booking: enrichBooking(b, db) }
 }

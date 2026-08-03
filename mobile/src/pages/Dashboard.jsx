@@ -14,6 +14,14 @@ const ACTIONS = [
     roles: ['admin', 'kasir', 'owner'],
   },
   {
+    to: '/cash-drawer',
+    emoji: '💵',
+    title: 'Uang Kasir',
+    desc: 'Setor, tarik & saldo laci',
+    color: 'green',
+    roles: ['admin', 'kasir', 'owner'],
+  },
+  {
     to: '/pet-hotel',
     emoji: '🏠',
     title: 'Titip Hewan',

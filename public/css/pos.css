@@ -573,3 +573,15 @@ table.data-table tr:hover { background: #fafbfc; }
     background: var(--primary);
     color: #fff;
 }
+
+.cash-balance-card {
+    background: linear-gradient(135deg, #0d9488 0%, #14b8a6 55%, #2dd4bf 100%);
+    color: #fff;
+    border-radius: 14px;
+    padding: 20px 22px;
+    margin-bottom: 16px;
+    box-shadow: 0 8px 20px rgba(13, 148, 136, 0.25);
+}
+.cash-balance-label { font-size: 13px; opacity: 0.9; }
+.cash-balance-value { font-size: 32px; font-weight: 800; letter-spacing: 0.02em; margin: 4px 0; }
+.cash-balance-meta { font-size: 12px; opacity: 0.85; }

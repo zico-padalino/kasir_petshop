@@ -67,6 +67,8 @@ const BASE = {
 
   hotel_bookings: [],
   held_orders: [],
+  cash_drawer: { balance: 0, updated_at: null },
+  cash_movements: [],
 
   stock_opnames: [],
   stock_opname_items: [],
@@ -306,8 +308,48 @@ export function buildSeed() {
 
   generateHotelBookings(db)
   generateStockOpnames(db)
+  generateCashDrawer(db)
   generateActivityLogs(db)
   return db
+}
+
+function generateCashDrawer(db) {
+  let balance = 500000
+  const movements = [{
+    id: 1,
+    type: 'cash_in',
+    amount: 500000,
+    direction: 'in',
+    balance_after: 500000,
+    note: 'Modal awal kasir (data contoh)',
+    reference: null,
+    user_id: db.users.find((u) => u.role_id === 1)?.id || 1,
+    created_at: db.transactions[0]?.created_at || fmtDate(new Date()),
+  }]
+  let id = 2
+  const cashSales = (db.transactions || [])
+    .filter((t) => t.payment_method === 'cash' && Number(t.total) > 0)
+    .sort((a, b) => (a.created_at < b.created_at ? -1 : 1))
+
+  for (const t of cashSales) {
+    const amt = Math.round(Number(t.total) || 0)
+    if (amt <= 0) continue
+    balance += amt
+    movements.push({
+      id: id++,
+      type: 'sale_cash',
+      amount: amt,
+      direction: 'in',
+      balance_after: balance,
+      note: `Penjualan tunai ${t.invoice_number}`,
+      reference: t.invoice_number,
+      user_id: t.user_id ?? null,
+      created_at: t.created_at,
+    })
+  }
+
+  db.cash_drawer = { balance, updated_at: fmtDate(new Date()) }
+  db.cash_movements = movements
 }
 
 function generateActivityLogs(db) {
