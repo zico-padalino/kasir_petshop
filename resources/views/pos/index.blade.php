@@ -76,10 +76,20 @@
             </div>
             <div class="form-group" style="margin-bottom:8px">
                 <label class="form-label" style="font-size:12px">Diskon</label>
-                <div class="rupiah-field">
+                <div class="discount-type-tabs">
+                    <button type="button" class="discount-type-tab active" id="discTypeRp" onclick="setDiscountType('rp')">Rp</button>
+                    <button type="button" class="discount-type-tab" id="discTypePct" onclick="setDiscountType('percent')">%</button>
+                </div>
+                <div class="rupiah-field" id="discountRpWrap">
                     <span class="rupiah-field-prefix">Rp</span>
                     <input type="text" id="discountInput" class="form-control rupiah-field-input" value="" inputmode="numeric" autocomplete="off" oninput="updateTotal()">
                 </div>
+                <div class="rupiah-field" id="discountPctWrap" style="display:none">
+                    <input type="number" id="discountPercent" class="form-control rupiah-field-input" value="" min="0" max="100" step="0.01" placeholder="0" inputmode="decimal" oninput="updateTotal()">
+                    <span class="rupiah-field-prefix" style="border-left:1px solid #ced4da;border-right:none">%</span>
+                </div>
+                <div id="discountHint" style="margin-top:4px;font-size:12px;color:#666;display:none"></div>
+                <input type="hidden" id="discountType" value="rp">
             </div>
             <div class="cart-total">
                 <span>Total</span><span id="totalDisplay">Rp 0</span>
@@ -214,7 +224,7 @@ function removeFromCart(id) {
 function clearCart() {
     if (cart.length && !confirm('Kosongkan keranjang?')) return;
     cart = [];
-    document.getElementById('discountInput').value = '';
+    setDiscountType('rp');
     renderCart();
 }
 
@@ -261,14 +271,56 @@ function renderCart() {
 
 function getSubtotal() { return cart.reduce((s, i) => s + (i.price * i.qty), 0); }
 
+function getDiscountType() {
+    return document.getElementById('discountType').value === 'percent' ? 'percent' : 'rp';
+}
+
+function getDiscountValue() {
+    if (getDiscountType() === 'percent') {
+        const v = parseFloat(document.getElementById('discountPercent').value);
+        return Number.isFinite(v) ? Math.min(100, Math.max(0, v)) : 0;
+    }
+    return parseRupiah(document.getElementById('discountInput').value);
+}
+
+function getDiscountAmount() {
+    const sub = getSubtotal();
+    const val = getDiscountValue();
+    if (getDiscountType() === 'percent') {
+        return Math.round(sub * val / 100);
+    }
+    return Math.min(sub, Math.max(0, val));
+}
+
 function getTotal() {
-    const discount = parseRupiah(document.getElementById('discountInput').value);
-    return Math.max(0, getSubtotal() - discount);
+    return Math.max(0, getSubtotal() - getDiscountAmount());
+}
+
+function setDiscountType(type) {
+    document.getElementById('discountType').value = type === 'percent' ? 'percent' : 'rp';
+    document.getElementById('discTypeRp').classList.toggle('active', type !== 'percent');
+    document.getElementById('discTypePct').classList.toggle('active', type === 'percent');
+    document.getElementById('discountRpWrap').style.display = type === 'percent' ? 'none' : 'flex';
+    document.getElementById('discountPctWrap').style.display = type === 'percent' ? 'flex' : 'none';
+    document.getElementById('discountInput').value = '';
+    document.getElementById('discountPercent').value = '';
+    updateTotal();
 }
 
 function updateTotal() {
     document.getElementById('subtotalDisplay').textContent = formatRupiah(getSubtotal());
     document.getElementById('totalDisplay').textContent = formatRupiah(getTotal());
+    const amt = getDiscountAmount();
+    const hint = document.getElementById('discountHint');
+    if (amt > 0) {
+        hint.style.display = 'block';
+        hint.textContent = getDiscountType() === 'percent'
+            ? 'Potongan: − ' + formatRupiah(amt) + ' (' + getDiscountValue() + '%)'
+            : 'Potongan: − ' + formatRupiah(amt);
+    } else {
+        hint.style.display = 'none';
+        hint.textContent = '';
+    }
     calcChange();
 }
 
@@ -276,7 +328,7 @@ function holdCurrentOrder() {
     if (!cart.length) return;
     const name = document.getElementById('activeCustomer').value.trim();
     if (!name) { alert('Isi nama pelanggan dulu sebelum menahan pesanan.'); document.getElementById('activeCustomer').focus(); return; }
-    const discount = parseRupiah(document.getElementById('discountInput').value);
+    const discount = getDiscountAmount();
     const list = loadHeld();
     const id = (list.reduce((m, o) => Math.max(m, o.id), 0) || 0) + 1;
     const subtotal = getSubtotal();
@@ -285,6 +337,8 @@ function holdCurrentOrder() {
         customer_name: name,
         items: cart.map(i => ({ ...i })),
         discount,
+        discount_type: getDiscountType(),
+        discount_value: getDiscountValue(),
         subtotal,
         total: Math.max(0, subtotal - discount),
         item_count: cart.reduce((s, i) => s + i.qty, 0),
@@ -292,7 +346,7 @@ function holdCurrentOrder() {
     });
     saveHeld(list);
     cart = [];
-    document.getElementById('discountInput').value = '';
+    setDiscountType('rp');
     document.getElementById('activeCustomer').value = '';
     renderCart();
     renderHeld();
@@ -335,7 +389,13 @@ function resumeHeld(id) {
     const order = list.find(o => o.id === id);
     if (!order) return;
     cart = order.items.map(i => ({ ...i }));
-    setRupiahValue(document.getElementById('discountInput'), order.discount || 0);
+    const dtype = order.discount_type === 'percent' ? 'percent' : 'rp';
+    setDiscountType(dtype);
+    if (dtype === 'percent') {
+        document.getElementById('discountPercent').value = order.discount_value != null ? order.discount_value : '';
+    } else {
+        setRupiahValue(document.getElementById('discountInput'), order.discount_value != null ? order.discount_value : (order.discount || 0));
+    }
     document.getElementById('activeCustomer').value = order.customer_name || '';
     saveHeld(list.filter(o => o.id !== id));
     renderCart();
@@ -430,7 +490,7 @@ async function processCheckout() {
             },
             body: JSON.stringify({
                 items: cart.map(i => ({ product_id: i.product_id, qty: i.qty })),
-                discount: parseRupiah(document.getElementById('discountInput').value),
+                discount: getDiscountAmount(),
                 payment_method: paymentMethod,
                 cash_received: paymentMethod === 'cash' ? parseRupiah(document.getElementById('cashReceived').value) : null,
                 customer_name: document.getElementById('customerName').value,
@@ -469,7 +529,7 @@ function closeSuccess() {
     document.getElementById('successModal').classList.remove('show');
     cart = [];
     lastTransactionId = null;
-    document.getElementById('discountInput').value = '';
+    setDiscountType('rp');
     document.getElementById('customerName').value = '';
     document.getElementById('activeCustomer').value = '';
     document.getElementById('notes').value = '';

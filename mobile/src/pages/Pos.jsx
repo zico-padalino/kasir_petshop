@@ -13,7 +13,7 @@ import {
 } from '../db/store'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
-import { rupiah, formatRupiah, dateTimeShort } from '../utils/format'
+import { rupiah, formatRupiah, dateTimeShort, calcDiscountAmount } from '../utils/format'
 import RupiahInput from '../components/RupiahInput'
 
 const BarcodeScanner = lazy(() => import('../components/BarcodeScanner'))
@@ -63,7 +63,8 @@ export default function Pos() {
 
   const [cart, setCart] = useState([])
   const [customerName, setCustomerName] = useState('')
-  const [discount, setDiscount] = useState(0)
+  const [discountType, setDiscountType] = useState('rp') // 'rp' | 'percent'
+  const [discountValue, setDiscountValue] = useState(0)
   const [checkoutOpen, setCheckoutOpen] = useState(false)
   const [success, setSuccess] = useState(null)
   const [scanCode, setScanCode] = useState('')
@@ -75,7 +76,8 @@ export default function Pos() {
   const scanInputRef = useRef(null)
 
   const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0)
-  const total = Math.max(0, subtotal - (Number(discount) || 0))
+  const discountAmount = calcDiscountAmount(subtotal, discountValue, discountType)
+  const total = Math.max(0, subtotal - discountAmount)
   const count = cart.reduce((s, i) => s + i.qty, 0)
 
   function addToCart(p, { fromScan = false } = {}) {
@@ -143,12 +145,19 @@ export default function Pos() {
   function clearCart() {
     if (cart.length && !confirm('Kosongkan keranjang?')) return
     setCart([])
-    setDiscount(0)
+    setDiscountValue(0)
+    setDiscountType('rp')
   }
 
   function handleHold() {
     const res = holdOrder(
-      { customer_name: customerName, items: cart, discount },
+      {
+        customer_name: customerName,
+        items: cart,
+        discount: discountAmount,
+        discount_type: discountType,
+        discount_value: discountValue,
+      },
       user
     )
     if (!res.ok) {
@@ -157,7 +166,8 @@ export default function Pos() {
     }
     toast.success(res.message)
     setCart([])
-    setDiscount(0)
+    setDiscountValue(0)
+    setDiscountType('rp')
     setCustomerName('')
     setHeldKey((k) => k + 1)
     requestAnimationFrame(() => scanInputRef.current?.focus())
@@ -173,7 +183,12 @@ export default function Pos() {
       return
     }
     setCart(res.order.items)
-    setDiscount(res.order.discount || 0)
+    setDiscountType(res.order.discount_type === 'percent' ? 'percent' : 'rp')
+    setDiscountValue(
+      res.order.discount_value != null
+        ? res.order.discount_value
+        : (res.order.discount || 0)
+    )
     setCustomerName(res.order.customer_name || '')
     setHeldKey((k) => k + 1)
     toast.success(res.message)
@@ -404,7 +419,48 @@ export default function Pos() {
             </div>
             <div className="form-group" style={{ marginBottom: 8 }}>
               <label className="form-label" style={{ fontSize: 12 }}>Diskon</label>
-              <RupiahInput value={discount} onChange={setDiscount} />
+              <div className="discount-type-tabs">
+                <button
+                  type="button"
+                  className={`discount-type-tab ${discountType === 'rp' ? 'active' : ''}`}
+                  onClick={() => { setDiscountType('rp'); setDiscountValue(0) }}
+                >
+                  Rp
+                </button>
+                <button
+                  type="button"
+                  className={`discount-type-tab ${discountType === 'percent' ? 'active' : ''}`}
+                  onClick={() => { setDiscountType('percent'); setDiscountValue(0) }}
+                >
+                  %
+                </button>
+              </div>
+              {discountType === 'rp' ? (
+                <RupiahInput value={discountValue} onChange={setDiscountValue} />
+              ) : (
+                <div className="rupiah-field">
+                  <input
+                    type="number"
+                    className="form-control rupiah-field-input"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    value={discountValue || ''}
+                    placeholder="0"
+                    onChange={(e) => {
+                      const v = e.target.value === '' ? 0 : Number(e.target.value)
+                      setDiscountValue(Number.isFinite(v) ? Math.min(100, Math.max(0, v)) : 0)
+                    }}
+                  />
+                  <span className="rupiah-field-prefix" style={{ borderLeft: '1px solid #ced4da', borderRight: 'none' }}>%</span>
+                </div>
+              )}
+              {discountAmount > 0 && (
+                <div style={{ marginTop: 4, fontSize: 12, color: '#666' }}>
+                  Potongan: − {rupiah(discountAmount)}
+                  {discountType === 'percent' ? ` (${discountValue}%)` : ''}
+                </div>
+              )}
             </div>
             <div className="cart-total"><span>Total</span><span>{rupiah(total)}</span></div>
             <div className="cart-actions">
@@ -456,7 +512,7 @@ export default function Pos() {
       {checkoutOpen && (
         <CheckoutModal
           total={total}
-          discount={Number(discount) || 0}
+          discount={discountAmount}
           cart={cart}
           user={user}
           initialCustomer={customerName}
@@ -519,7 +575,8 @@ export default function Pos() {
                 onClick={() => {
                   setSuccess(null)
                   setCart([])
-                  setDiscount(0)
+                  setDiscountValue(0)
+                  setDiscountType('rp')
                   setCustomerName('')
                   setReloadKey((k) => k + 1)
                   requestAnimationFrame(() => scanInputRef.current?.focus())

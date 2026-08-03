@@ -21,6 +21,20 @@ export function formatRupiahInput(n) {
   return num.toLocaleString('id-ID')
 }
 
+/**
+ * Hitung nominal diskon dari nilai + tipe.
+ * type: 'rp' | 'percent'
+ */
+export function calcDiscountAmount(subtotal, value, type = 'rp') {
+  const base = Math.max(0, Number(subtotal) || 0)
+  const v = Number(value) || 0
+  if (type === 'percent') {
+    const pct = Math.min(100, Math.max(0, v))
+    return Math.round((base * pct) / 100)
+  }
+  return Math.min(base, Math.max(0, Math.round(v)))
+}
+
 const MONTHS = [
   'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
   'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',

@@ -514,7 +514,7 @@ export function getHeldOrders() {
 }
 
 /** Tahan keranjang pelanggan A agar bisa layani pelanggan B */
-export function holdOrder({ customer_name, items, discount = 0 }, currentUser = null) {
+export function holdOrder({ customer_name, items, discount = 0, discount_type = 'rp', discount_value = null }, currentUser = null) {
   const db = load()
   if (!Array.isArray(db.held_orders)) db.held_orders = []
   const name = String(customer_name || '').trim()
@@ -523,13 +523,23 @@ export function holdOrder({ customer_name, items, discount = 0 }, currentUser = 
 
   const id = nextId(db.held_orders)
   const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0)
+  const type = discount_type === 'percent' ? 'percent' : 'rp'
+  const value = discount_value != null ? Number(discount_value) || 0 : Number(discount) || 0
+  let disc = Number(discount) || 0
+  if (type === 'percent') {
+    disc = Math.round((subtotal * Math.min(100, Math.max(0, value))) / 100)
+  } else {
+    disc = Math.min(subtotal, Math.max(0, Math.round(value)))
+  }
   const order = {
     id,
     customer_name: name,
     items: items.map((i) => ({ ...i })),
-    discount: Number(discount) || 0,
+    discount: disc,
+    discount_type: type,
+    discount_value: value,
     subtotal,
-    total: Math.max(0, subtotal - (Number(discount) || 0)),
+    total: Math.max(0, subtotal - disc),
     item_count: items.reduce((s, i) => s + i.qty, 0),
     user_id: currentUser?.id ?? null,
     created_at: nowIso(),
