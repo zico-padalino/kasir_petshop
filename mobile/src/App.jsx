@@ -23,6 +23,7 @@ import StockOpnameDetail from './pages/StockOpnameDetail'
 import ActivityLogs from './pages/ActivityLogs'
 import CashDrawer from './pages/CashDrawer'
 import Attendance from './pages/Attendance'
+import AttendanceForm from './pages/AttendanceForm'
 
 export default function App() {
   const { ready } = useAuth()
@@ -72,6 +73,14 @@ export default function App() {
           element={
             <ProtectedRoute roles={['admin', 'kasir', 'owner']}>
               <Attendance />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/attendance/form"
+          element={
+            <ProtectedRoute roles={['admin', 'kasir', 'owner']}>
+              <AttendanceForm />
             </ProtectedRoute>
           }
         />

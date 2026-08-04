@@ -10,11 +10,13 @@ import {
   resumeHeldOrder,
   transferHeldOrder,
   deleteHeldOrder,
+  isAttendanceBarcode,
 } from '../db/store'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { rupiah, formatRupiah, dateTimeShort, calcDiscountAmount } from '../utils/format'
 import RupiahInput from '../components/RupiahInput'
+import { unlockAttendanceSession } from '../utils/attendanceSession'
 
 const BarcodeScanner = lazy(() => import('../components/BarcodeScanner'))
 
@@ -107,6 +109,13 @@ export default function Pos() {
   function handleScan(raw) {
     const code = String(raw || '').trim()
     if (!code) return
+    // barcode absensi toko → langsung ke halaman form absen
+    if (isAttendanceBarcode(code)) {
+      unlockAttendanceSession()
+      setScanCode('')
+      navigate('/attendance/form')
+      return
+    }
     const res = findProductByScan(code)
     if (!res.ok) {
       setScanMsg({ type: 'err', text: res.message })

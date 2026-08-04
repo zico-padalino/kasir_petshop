@@ -1,17 +1,16 @@
 import { useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   ATTENDANCE_BARCODE,
-  clockAttendance,
   getAttendanceBarcode,
   getAttendanceLogs,
   getAttendanceTodaySummary,
-  getUsers,
   isAttendanceBarcode,
   normalizeScanCode,
-  peekNextAttendanceType,
 } from '../db/store'
 import { useAuth } from '../context/AuthContext'
 import { dateTimeShort, todayInput, monthStartInput } from '../utils/format'
+import { unlockAttendanceSession } from '../utils/attendanceSession'
 
 const BarcodeScanner = lazy(() => import('../components/BarcodeScanner'))
 
@@ -31,150 +30,16 @@ function beepOk() {
   } catch { /* ignore */ }
 }
 
-/** Ambil GPS */
-function getGeoPosition() {
-  return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) {
-      reject(new Error('GPS tidak didukung di perangkat ini.'))
-      return
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        resolve({
-          latitude: pos.coords.latitude,
-          longitude: pos.coords.longitude,
-          accuracy: pos.coords.accuracy,
-        })
-      },
-      (err) => {
-        reject(new Error(err.code === 1
-          ? 'Izinkan akses lokasi di browser.'
-          : 'Gagal membaca lokasi GPS.'))
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-    )
-  })
-}
-
-/** Kompres selfie agar hemat localStorage */
-function compressSelfie(dataUrl, maxW = 320, quality = 0.55) {
-  return new Promise((resolve) => {
-    const img = new Image()
-    img.onload = () => {
-      const scale = Math.min(1, maxW / img.width)
-      const w = Math.round(img.width * scale)
-      const h = Math.round(img.height * scale)
-      const canvas = document.createElement('canvas')
-      canvas.width = w
-      canvas.height = h
-      const ctx = canvas.getContext('2d')
-      ctx.drawImage(img, 0, 0, w, h)
-      resolve(canvas.toDataURL('image/jpeg', quality))
-    }
-    img.onerror = () => resolve(dataUrl)
-    img.src = dataUrl
-  })
-}
-
-function SelfieBox({ selfie, onCapture, onClear }) {
-  const videoRef = useRef(null)
-  const streamRef = useRef(null)
-  const [live, setLive] = useState(false)
-  const [err, setErr] = useState('')
-
-  useEffect(() => () => stopCam(), [])
-
-  function stopCam() {
-    streamRef.current?.getTracks()?.forEach((t) => t.stop())
-    streamRef.current = null
-    setLive(false)
-  }
-
-  async function startCam() {
-    setErr('')
-    try {
-      stopCam()
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
-        audio: false,
-      })
-      streamRef.current = stream
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-        await videoRef.current.play()
-      }
-      setLive(true)
-    } catch {
-      setErr('Kamera depan tidak bisa dibuka. Izinkan akses kamera.')
-    }
-  }
-
-  async function snap() {
-    const video = videoRef.current
-    if (!video) return
-    const canvas = document.createElement('canvas')
-    canvas.width = video.videoWidth || 640
-    canvas.height = video.videoHeight || 480
-    canvas.getContext('2d').drawImage(video, 0, 0)
-    const raw = canvas.toDataURL('image/jpeg', 0.85)
-    const compressed = await compressSelfie(raw)
-    stopCam()
-    onCapture(compressed)
-  }
-
-  if (selfie) {
-    return (
-      <div className="att-selfie-preview">
-        <img src={selfie} alt="Selfie absensi" />
-        <button type="button" className="btn btn-outline btn-sm" onClick={onClear}>
-          <i className="bi bi-arrow-repeat"></i> Ambil ulang
-        </button>
-      </div>
-    )
-  }
-
-  return (
-    <div className="att-selfie-box">
-      <video ref={videoRef} className={`att-selfie-video ${live ? 'show' : ''}`} playsInline muted />
-      {!live && (
-        <div className="att-selfie-placeholder">
-          <i className="bi bi-camera"></i>
-          <span>Selfie wajah wajib untuk absen</span>
-        </div>
-      )}
-      {err && <div className="scan-feedback err" style={{ marginTop: 8 }}>{err}</div>}
-      <div className="att-selfie-actions">
-        {!live ? (
-          <button type="button" className="btn btn-primary btn-sm" onClick={startCam}>
-            <i className="bi bi-camera-video"></i> Buka kamera
-          </button>
-        ) : (
-          <>
-            <button type="button" className="btn btn-success btn-sm" onClick={snap}>
-              <i className="bi bi-camera-fill"></i> Ambil selfie
-            </button>
-            <button type="button" className="btn btn-outline btn-sm" onClick={stopCam}>Batal</button>
-          </>
-        )}
-      </div>
-    </div>
-  )
+function mapsLink(lat, lng) {
+  return `https://www.google.com/maps?q=${lat},${lng}`
 }
 
 export default function Attendance() {
-  const { user, can } = useAuth()
+  const { can } = useAuth()
+  const navigate = useNavigate()
   const shopCode = getAttendanceBarcode()
-  const employees = useMemo(() => getUsers().filter((u) => u.is_active), [])
-
-  const [unlocked, setUnlocked] = useState(false)
   const [scanCode, setScanCode] = useState('')
   const [cameraOpen, setCameraOpen] = useState(false)
-  const [employeeId, setEmployeeId] = useState('')
-  const [selfie, setSelfie] = useState(null)
-  const [location, setLocation] = useState(null)
-  const [locLoading, setLocLoading] = useState(false)
-  const [locErr, setLocErr] = useState('')
-  const [submitting, setSubmitting] = useState(false)
   const [feedback, setFeedback] = useState(null)
   const [preview, setPreview] = useState(null)
   const [reload, setReload] = useState(0)
@@ -190,16 +55,19 @@ export default function Attendance() {
 
   const today = useMemo(() => getAttendanceTodaySummary(), [reload])
   const logs = useMemo(() => getAttendanceLogs({ ...applied, limit: 150 }), [applied, reload])
-  const nextType = useMemo(() => peekNextAttendanceType(employeeId), [employeeId, reload])
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(shopCode)}`
 
   useEffect(() => {
+    scanRef.current?.focus()
+  }, [])
+
+  useEffect(() => {
     if (!feedback) return
-    const t = setTimeout(() => setFeedback(null), 4000)
+    const t = setTimeout(() => setFeedback(null), 3500)
     return () => clearTimeout(t)
   }, [feedback])
 
-  function unlockWithCode(raw) {
+  function goToForm(raw) {
     const code = normalizeScanCode(raw)
     if (!code) return
     if (!isAttendanceBarcode(code)) {
@@ -207,83 +75,26 @@ export default function Attendance() {
       return
     }
     beepOk()
-    setUnlocked(true)
+    unlockAttendanceSession()
     setScanCode('')
-    setFeedback({ type: 'ok', text: 'Barcode toko valid. Lanjutkan isi form absensi.' })
-    refreshLocation()
+    navigate('/attendance/form')
   }
 
   function submitScan(e) {
     e.preventDefault()
-    unlockWithCode(scanCode)
-  }
-
-  async function refreshLocation() {
-    setLocLoading(true)
-    setLocErr('')
-    try {
-      const pos = await getGeoPosition()
-      setLocation(pos)
-    } catch (e) {
-      setLocation(null)
-      setLocErr(e.message || 'Lokasi gagal')
-    } finally {
-      setLocLoading(false)
-    }
-  }
-
-  async function submitAttendance(e) {
-    e.preventDefault()
-    if (!unlocked) {
-      setFeedback({ type: 'err', text: 'Scan barcode toko dulu.' })
-      return
-    }
-    setSubmitting(true)
-    let loc = location
-    if (!loc) {
-      try {
-        loc = await getGeoPosition()
-        setLocation(loc)
-      } catch (err) {
-        setFeedback({ type: 'err', text: err.message })
-        setSubmitting(false)
-        return
-      }
-    }
-    const res = clockAttendance({
-      userId: employeeId,
-      barcode: shopCode,
-      selfie,
-      location: loc,
-      actor: user,
-      source: 'form',
-    })
-    setSubmitting(false)
-    if (!res.ok) {
-      setFeedback({ type: 'err', text: res.message })
-      return
-    }
-    beepOk()
-    setFeedback({ type: 'ok', text: res.message, punch: res.type })
-    setSelfie(null)
-    setEmployeeId('')
-    setReload((n) => n + 1)
-  }
-
-  function mapsLink(lat, lng) {
-    return `https://www.google.com/maps?q=${lat},${lng}`
+    goToForm(scanCode)
   }
 
   return (
     <>
       <h1 className="page-title">Absensi Karyawan</h1>
       <p style={{ margin: '-12px 0 16px', color: '#666', fontSize: 13 }}>
-        1 barcode toko · pilih nama · selfie · lokasi GPS
+        Scan barcode toko untuk masuk ke halaman absen
       </p>
 
       <div className="home-tip" style={{ marginTop: 0, marginBottom: 14 }}>
-        <strong>Alur:</strong> Scan barcode toko <code>{shopCode}</code> → pilih nama pegawai → ambil selfie →
-        pastikan GPS aktif → simpan. Scan pertama hari itu = <strong>Masuk</strong>, berikutnya = <strong>Pulang</strong>.
+        <strong>Cara:</strong> Scan / ketik <code>{shopCode}</code> → otomatis masuk ke form absensi
+        (pilih nama, selfie, GPS).
       </div>
 
       <div className="att-shop-code">
@@ -292,123 +103,36 @@ export default function Attendance() {
           <div className="att-shop-label">Barcode Absensi Toko</div>
           <div className="att-code">{shopCode}</div>
           <p style={{ margin: '6px 0 0', fontSize: 12, color: '#666' }}>
-            Satu kode untuk semua pegawai. Tempel di meja absensi atau scan dari layar ini.
+            Satu kode untuk semua. Tempel di meja atau scan dari layar ini / kasir.
           </p>
         </div>
       </div>
 
-      {!unlocked ? (
-        <form className="scan-bar" onSubmit={submitScan}>
-          <div className="scan-bar-icon"><i className="bi bi-upc-scan"></i></div>
-          <input
-            ref={scanRef}
-            type="text"
-            className="form-control scan-input"
-            placeholder={`Scan / ketik ${shopCode}`}
-            value={scanCode}
-            onChange={(e) => setScanCode(e.target.value)}
-            autoComplete="off"
-          />
-          <button type="submit" className="btn btn-primary btn-sm" disabled={!scanCode.trim()}>
-            Buka
-          </button>
-          <button type="button" className="btn btn-outline btn-sm" onClick={() => setCameraOpen(true)}>
-            <i className="bi bi-camera"></i> Kamera
-          </button>
-        </form>
-      ) : (
-        <div className="scan-feedback ok" style={{ marginBottom: 12 }}>
-          <i className="bi bi-shield-check"></i>
-          Barcode toko sudah diverifikasi
-          <button type="button" className="btn btn-sm btn-outline" style={{ marginLeft: 'auto' }} onClick={() => setUnlocked(false)}>
-            Kunci lagi
-          </button>
-        </div>
-      )}
+      <form className="scan-bar" onSubmit={submitScan}>
+        <div className="scan-bar-icon"><i className="bi bi-upc-scan"></i></div>
+        <input
+          ref={scanRef}
+          type="text"
+          className="form-control scan-input"
+          placeholder={`Scan / ketik ${shopCode} lalu Enter`}
+          value={scanCode}
+          onChange={(e) => setScanCode(e.target.value)}
+          autoComplete="off"
+          autoFocus
+        />
+        <button type="submit" className="btn btn-primary btn-sm" disabled={!scanCode.trim()}>
+          Masuk Absen
+        </button>
+        <button type="button" className="btn btn-outline btn-sm" onClick={() => setCameraOpen(true)}>
+          <i className="bi bi-camera"></i> Kamera
+        </button>
+      </form>
 
       {feedback && (
-        <div className={`scan-feedback ${feedback.type === 'ok' ? 'ok' : 'err'} att-feedback`}>
+        <div className={`scan-feedback ${feedback.type === 'ok' ? 'ok' : 'err'}`}>
           {feedback.type === 'ok' ? <i className="bi bi-check-circle-fill"></i> : <i className="bi bi-exclamation-circle-fill"></i>}
-          <span>
-            {feedback.text}
-            {feedback.punch && (
-              <span className={`att-punch-badge ${feedback.punch}`}>
-                {feedback.punch === 'in' ? 'MASUK' : 'PULANG'}
-              </span>
-            )}
-          </span>
+          {feedback.text}
         </div>
-      )}
-
-      {unlocked && (
-        <form className="card att-form-card" onSubmit={submitAttendance}>
-          <div className="card-header">
-            <span>Form Absensi</span>
-            {employeeId && (
-              <span className={`badge ${nextType === 'in' ? 'badge-success' : 'badge-info'}`}>
-                Akan tercatat: {nextType === 'in' ? 'MASUK' : 'PULANG'}
-              </span>
-            )}
-          </div>
-          <div className="card-body">
-            <div className="form-group">
-              <label className="form-label">Nama pegawai *</label>
-              <select
-                className="form-control"
-                value={employeeId}
-                onChange={(e) => setEmployeeId(e.target.value)}
-                required
-              >
-                <option value="">— Pilih pegawai —</option>
-                {employees.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name} ({ROLE_LABEL[u.role_slug] || u.role_name})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Selfie *</label>
-              <SelfieBox selfie={selfie} onCapture={setSelfie} onClear={() => setSelfie(null)} />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Lokasi GPS *</label>
-              <div className="att-geo-box">
-                {locLoading ? (
-                  <span>Mengambil koordinat...</span>
-                ) : location ? (
-                  <>
-                    <div><strong>Lat:</strong> {location.latitude.toFixed(6)}</div>
-                    <div><strong>Lng:</strong> {location.longitude.toFixed(6)}</div>
-                    {location.accuracy != null && (
-                      <div><strong>Akurasi:</strong> ±{Math.round(location.accuracy)} m</div>
-                    )}
-                    <a href={mapsLink(location.latitude, location.longitude)} target="_blank" rel="noreferrer">
-                      Buka di Google Maps
-                    </a>
-                  </>
-                ) : (
-                  <span style={{ color: '#b42318' }}>{locErr || 'Lokasi belum diambil'}</span>
-                )}
-                <button type="button" className="btn btn-outline btn-sm" onClick={refreshLocation} disabled={locLoading}>
-                  <i className="bi bi-geo-alt"></i> {location ? 'Perbarui lokasi' : 'Ambil lokasi'}
-                </button>
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              className="btn btn-success"
-              style={{ width: '100%', justifyContent: 'center', padding: 12 }}
-              disabled={submitting || !employeeId || !selfie}
-            >
-              <i className="bi bi-check2-circle"></i>{' '}
-              {submitting ? 'Menyimpan...' : `Simpan Absen ${nextType === 'in' ? 'Masuk' : 'Pulang'}`}
-            </button>
-          </div>
-        </form>
       )}
 
       <div className="home-summary" style={{ margin: '16px 0', gridTemplateColumns: 'repeat(3, 1fr)' }}>
@@ -473,6 +197,7 @@ export default function Attendance() {
             onSubmit={(e) => {
               e.preventDefault()
               setApplied({ dateFrom, dateTo, search })
+              setReload((n) => n + 1)
             }}
           >
             <input type="date" className="form-control" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} style={{ maxWidth: 160 }} />
@@ -569,8 +294,8 @@ export default function Attendance() {
           <BarcodeScanner
             onClose={() => setCameraOpen(false)}
             onScan={(code) => {
-              unlockWithCode(code)
               setCameraOpen(false)
+              goToForm(code)
             }}
           />
         </Suspense>
