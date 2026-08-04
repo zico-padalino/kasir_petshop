@@ -10,6 +10,7 @@ const MENU = [
     items: [
       { to: '/pos', icon: 'bi-cart3', label: 'Jual Barang', roles: ['admin', 'kasir', 'owner'] },
       { to: '/cash-drawer', icon: 'bi-safe', label: 'Uang Kasir', roles: ['admin', 'kasir', 'owner'] },
+      { to: '/attendance', icon: 'bi-person-badge', label: 'Absensi', roles: ['admin', 'kasir', 'owner'] },
       { to: '/transactions', icon: 'bi-receipt', label: 'Riwayat Jual', roles: ['admin', 'kasir', 'owner'] },
       { to: '/pet-hotel', icon: 'bi-house-heart', label: 'Titip Hewan', roles: ['admin', 'kasir', 'owner'] },
     ],

@@ -40,7 +40,13 @@ export default function Users() {
       return
     }
     setEditing(u.id)
-    setForm({ name: u.name, email: u.email, password: '', role_id: u.role_id, is_active: Boolean(u.is_active) })
+    setForm({
+      name: u.name,
+      email: u.email,
+      password: '',
+      role_id: u.role_id,
+      is_active: Boolean(u.is_active),
+    })
   }
 
   function submit(e) {

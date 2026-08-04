@@ -10,9 +10,9 @@ const BASE = {
   ],
 
   users: [
-    { id: 1, role_id: 1, name: 'Admin PetShop', email: 'admin@petshop.com', password: 'password', is_active: 1 },
-    { id: 2, role_id: 2, name: 'Kasir PetShop', email: 'kasir@petshop.com', password: 'password', is_active: 1 },
-    { id: 3, role_id: 3, name: 'Owner PetShop', email: 'owner@petshop.com', password: 'password', is_active: 1 },
+    { id: 1, role_id: 1, name: 'Admin PetShop', email: 'admin@petshop.com', password: 'password', is_active: 1, device_barcode: 'DEV-ADMIN01' },
+    { id: 2, role_id: 2, name: 'Kasir PetShop', email: 'kasir@petshop.com', password: 'password', is_active: 1, device_barcode: 'DEV-KASIR01' },
+    { id: 3, role_id: 3, name: 'Owner PetShop', email: 'owner@petshop.com', password: 'password', is_active: 1, device_barcode: 'DEV-OWNER01' },
   ],
 
   categories: [
@@ -74,6 +74,7 @@ const BASE = {
   stock_opname_items: [],
 
   activity_logs: [],
+  attendance_logs: [],
 }
 
 /* ---------- util generator ---------- */
@@ -310,6 +311,7 @@ export function buildSeed() {
   generateStockOpnames(db)
   generateCashDrawer(db)
   generateActivityLogs(db)
+  generateAttendanceLogs(db)
   return db
 }
 
@@ -490,6 +492,68 @@ function generateStockOpnames(db) {
 
   db.stock_opnames = [opname]
   db.stock_opname_items = items
+}
+
+function generateAttendanceLogs(db) {
+  const logs = []
+  let id = 1
+  const now = new Date()
+  const staff = (db.users || []).filter((u) => u.is_active)
+
+  for (let d = 5; d >= 0; d--) {
+    for (const u of staff) {
+      // owner kadang tidak absen
+      if (u.role_id === 3 && d % 2 === 1) continue
+      const day = new Date(now)
+      day.setDate(now.getDate() - d)
+      const inAt = new Date(day)
+      inAt.setHours(randInt(7, 9), randInt(0, 59), randInt(0, 59), 0)
+      const outAt = new Date(day)
+      outAt.setHours(randInt(16, 19), randInt(0, 59), randInt(0, 59), 0)
+      const role = db.roles.find((r) => r.id === u.role_id)
+      const lat = -6.2 + Math.random() * 0.02
+      const lng = 106.8 + Math.random() * 0.02
+      logs.push({
+        id: id++,
+        user_id: u.id,
+        user_name: u.name,
+        role_slug: role?.slug ?? null,
+        barcode: 'ABSEN-DZIKRA',
+        type: 'in',
+        selfie: null,
+        latitude: lat,
+        longitude: lng,
+        accuracy: randInt(8, 40),
+        scanned_by_user_id: u.id,
+        note: null,
+        meta: { source: 'seed' },
+        created_at: fmtDate(inAt),
+      })
+      // hari ini belum pulang untuk kasir (demo status masuk)
+      if (!(d === 0 && u.role_id === 2)) {
+        logs.push({
+          id: id++,
+          user_id: u.id,
+          user_name: u.name,
+          role_slug: role?.slug ?? null,
+          barcode: 'ABSEN-DZIKRA',
+          type: 'out',
+          selfie: null,
+          latitude: lat + 0.001,
+          longitude: lng + 0.001,
+          accuracy: randInt(8, 40),
+          scanned_by_user_id: u.id,
+          note: null,
+          meta: { source: 'seed' },
+          created_at: fmtDate(outAt),
+        })
+      }
+    }
+  }
+
+  logs.sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
+  logs.forEach((l, i) => { l.id = i + 1 })
+  db.attendance_logs = logs
 }
 
 // SEED statis (master data tanpa transaksi) tetap diekspor bila diperlukan.

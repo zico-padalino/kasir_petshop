@@ -22,6 +22,14 @@ const ACTIONS = [
     roles: ['admin', 'kasir', 'owner'],
   },
   {
+    to: '/attendance',
+    emoji: '🪪',
+    title: 'Absensi',
+    desc: 'Barcode toko + selfie + GPS',
+    color: 'blue',
+    roles: ['admin', 'kasir', 'owner'],
+  },
+  {
     to: '/pet-hotel',
     emoji: '🏠',
     title: 'Titip Hewan',

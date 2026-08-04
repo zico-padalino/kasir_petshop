@@ -21,6 +21,22 @@ function ensureSchema(db) {
     const fresh = buildSeed()
     db.activity_logs = fresh.activity_logs || []
   }
+  if (!Array.isArray(db.attendance_logs)) {
+    const fresh = buildSeed()
+    db.attendance_logs = fresh.attendance_logs || []
+  } else if (!db.attendance_logs.length) {
+    // isi contoh sekali untuk DB lama yang belum punya data absensi
+    try {
+      const flag = localStorage.getItem('kasir_dzikra_att_seeded')
+      if (!flag) {
+        const fresh = buildSeed()
+        if (fresh.attendance_logs?.length) {
+          db.attendance_logs = fresh.attendance_logs
+          localStorage.setItem('kasir_dzikra_att_seeded', '1')
+        }
+      }
+    } catch { /* ignore */ }
+  }
   if (!Array.isArray(db.held_orders)) db.held_orders = []
   if (!db.cash_drawer || !Array.isArray(db.cash_movements)) {
     migrateCashDrawer(db)
@@ -30,6 +46,14 @@ function ensureSchema(db) {
     db.products.forEach((p, i) => {
       if (!p.barcode) {
         p.barcode = `8991001${String(p.id || i + 1).padStart(6, '0')}`
+      }
+    })
+  }
+  // barcode device karyawan untuk absensi
+  if (Array.isArray(db.users)) {
+    db.users.forEach((u) => {
+      if (!u.device_barcode) {
+        u.device_barcode = `DEV-${String(u.id).padStart(6, '0')}`
       }
     })
   }
@@ -1006,6 +1030,7 @@ export function getUsers() {
       email: u.email,
       role_id: u.role_id,
       is_active: u.is_active,
+      device_barcode: u.device_barcode || `DEV-${String(u.id).padStart(6, '0')}`,
       role_name: role?.name ?? '-',
       role_slug: role?.slug ?? '',
     }
@@ -1025,6 +1050,11 @@ export function createUser(data, actor = null) {
   }
   if (!data.password) return { ok: false, message: 'Password wajib diisi.' }
   const id = nextId(db.users)
+  const device_barcode =
+    normalizeScanCode(data.device_barcode || '') || `DEV-${String(id).padStart(6, '0')}`
+  if (db.users.some((u) => normalizeScanCode(u.device_barcode || '') === device_barcode)) {
+    return { ok: false, message: 'Barcode device sudah dipakai pengguna lain.' }
+  }
   db.users.push({
     id,
     role_id: roleId,
@@ -1032,6 +1062,7 @@ export function createUser(data, actor = null) {
     email: data.email.trim(),
     password: data.password,
     is_active: 1,
+    device_barcode,
   })
   pushLog(db, { user: actor, action: 'create', module: 'user', description: `Menambah pengguna "${data.name.trim()}"` })
   save(db)
@@ -1052,10 +1083,22 @@ export function updateUser(id, data, actor = null) {
   if (db.users.some((u) => u.email.toLowerCase() === data.email.toLowerCase().trim() && u.id !== Number(id))) {
     return { ok: false, message: 'Email sudah digunakan pengguna lain.' }
   }
+  const device_barcode =
+    normalizeScanCode(data.device_barcode || '') ||
+    user.device_barcode ||
+    `DEV-${String(user.id).padStart(6, '0')}`
+  if (
+    db.users.some(
+      (u) => normalizeScanCode(u.device_barcode || '') === device_barcode && u.id !== Number(id)
+    )
+  ) {
+    return { ok: false, message: 'Barcode device sudah dipakai pengguna lain.' }
+  }
   user.name = data.name.trim()
   user.email = data.email.trim()
   user.role_id = nextRoleId
   user.is_active = data.is_active ? 1 : 0
+  user.device_barcode = device_barcode
   if (data.password) user.password = data.password
   pushLog(db, { user: actor, action: 'update', module: 'user', description: `Mengubah pengguna "${user.name}"` })
   save(db)
@@ -1077,6 +1120,181 @@ export function deleteUser(id, currentUser) {
   pushLog(db, { user: currentUser, action: 'delete', module: 'user', description: `Menghapus pengguna "${target?.name || id}"` })
   save(db)
   return { ok: true, message: 'Pengguna berhasil dihapus.' }
+}
+
+/* ============ ABSENSI (1 barcode toko + pilih pegawai + selfie + lokasi) ============ */
+
+/** Barcode absensi tunggal untuk seluruh toko */
+export const ATTENDANCE_BARCODE = 'ABSEN-DZIKRA'
+
+export function getAttendanceBarcode() {
+  return ATTENDANCE_BARCODE
+}
+
+export function isAttendanceBarcode(code) {
+  const variants = barcodeVariants(ATTENDANCE_BARCODE).map((v) => v.toUpperCase())
+  const q = normalizeScanCode(code).toUpperCase()
+  if (!q) return false
+  return variants.includes(q) || q === 'ABSENDZIKRA' || q.replace(/[^A-Z0-9]/g, '') === 'ABSENDZIKRA'
+}
+
+function lastAttendanceToday(db, userId) {
+  const today = todayStr()
+  const rows = (db.attendance_logs || [])
+    .filter((l) => l.user_id === Number(userId) && dateOnly(l.created_at) === today)
+    .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
+  return rows[0] || null
+}
+
+function trimAttendanceStorage(db) {
+  const logs = db.attendance_logs || []
+  // urut lama → baru; hapus foto pada record lama agar localStorage tidak penuh
+  const sorted = [...logs].sort((a, b) => (a.created_at < b.created_at ? -1 : 1))
+  const keepPhoto = 30
+  const newest = sorted.slice(-keepPhoto).map((l) => l.id)
+  const keepSet = new Set(newest)
+  logs.forEach((l) => {
+    if (l.selfie && !keepSet.has(l.id)) l.selfie = null
+  })
+  if (logs.length > 400) {
+    db.attendance_logs = [...logs].sort((a, b) => (a.created_at < b.created_at ? 1 : -1)).slice(0, 400)
+  }
+}
+
+/**
+ * Absen masuk/pulang:
+ * - barcode toko (satu untuk semua)
+ * - pilih pegawai (userId)
+ * - selfie wajib
+ * - koordinat lokasi wajib
+ */
+export function clockAttendance({
+  userId,
+  barcode,
+  selfie = null,
+  location = null,
+  actor = null,
+  source = 'form',
+} = {}) {
+  if (!isAttendanceBarcode(barcode || ATTENDANCE_BARCODE)) {
+    return { ok: false, message: `Barcode salah. Gunakan kode toko: ${ATTENDANCE_BARCODE}` }
+  }
+  if (!userId) return { ok: false, message: 'Pilih nama pegawai dulu.' }
+  if (!selfie) return { ok: false, message: 'Selfie wajib diambil sebelum absen.' }
+  if (!location || location.latitude == null || location.longitude == null) {
+    return { ok: false, message: 'Lokasi GPS wajib diaktifkan.' }
+  }
+
+  const db = load()
+  const employee = db.users.find((u) => u.id === Number(userId))
+  if (!employee || !employee.is_active) {
+    return { ok: false, message: 'Pegawai tidak ditemukan / tidak aktif.' }
+  }
+
+  const last = lastAttendanceToday(db, employee.id)
+  const type = !last || last.type === 'out' ? 'in' : 'out'
+  const role = db.roles.find((r) => r.id === employee.role_id)
+
+  if (!db.attendance_logs) db.attendance_logs = []
+  const row = {
+    id: nextId(db.attendance_logs),
+    user_id: employee.id,
+    user_name: employee.name,
+    role_slug: role?.slug ?? null,
+    barcode: ATTENDANCE_BARCODE,
+    type,
+    selfie,
+    latitude: Number(location.latitude),
+    longitude: Number(location.longitude),
+    accuracy: location.accuracy != null ? Number(location.accuracy) : null,
+    scanned_by_user_id: actor?.id ?? null,
+    note: null,
+    meta: { source },
+    created_at: nowIso(),
+  }
+  db.attendance_logs.push(row)
+  trimAttendanceStorage(db)
+
+  const label = type === 'in' ? 'masuk' : 'pulang'
+  pushLog(db, {
+    user: actor || {
+      id: employee.id,
+      name: employee.name,
+      role_slug: role?.slug,
+    },
+    action: type === 'in' ? 'clock_in' : 'clock_out',
+    module: 'attendance',
+    description: `${employee.name} absen ${label} (GPS ${row.latitude.toFixed(5)}, ${row.longitude.toFixed(5)})`,
+    meta: { attendance_id: row.id, type },
+  })
+  save(db)
+
+  return {
+    ok: true,
+    type,
+    message: type === 'in'
+      ? `${employee.name} berhasil absen MASUK`
+      : `${employee.name} berhasil absen PULANG`,
+    record: row,
+    user: {
+      id: employee.id,
+      name: employee.name,
+      role_slug: role?.slug,
+      role_name: role?.name,
+    },
+  }
+}
+
+export function peekNextAttendanceType(userId) {
+  if (!userId) return 'in'
+  const db = load()
+  const last = lastAttendanceToday(db, userId)
+  return !last || last.type === 'out' ? 'in' : 'out'
+}
+
+export function getAttendanceLogs({
+  dateFrom = '',
+  dateTo = '',
+  userId = '',
+  search = '',
+  limit = 200,
+} = {}) {
+  const db = load()
+  let rows = [...(db.attendance_logs || [])]
+  if (dateFrom) rows = rows.filter((l) => dateOnly(l.created_at) >= dateFrom)
+  if (dateTo) rows = rows.filter((l) => dateOnly(l.created_at) <= dateTo)
+  if (userId) rows = rows.filter((l) => l.user_id === Number(userId))
+  if (search) {
+    const q = search.toLowerCase()
+    rows = rows.filter(
+      (l) =>
+        (l.user_name || '').toLowerCase().includes(q) ||
+        (l.barcode || l.device_barcode || '').toLowerCase().includes(q) ||
+        (l.type || '').toLowerCase().includes(q)
+    )
+  }
+  rows.sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
+  return rows.slice(0, limit)
+}
+
+export function getAttendanceTodaySummary() {
+  const db = load()
+  const today = todayStr()
+  const todayLogs = (db.attendance_logs || []).filter((l) => dateOnly(l.created_at) === today)
+  const byUser = {}
+  todayLogs
+    .slice()
+    .sort((a, b) => (a.created_at < b.created_at ? -1 : 1))
+    .forEach((l) => {
+      byUser[l.user_id] = l
+    })
+  const statuses = Object.values(byUser)
+  return {
+    total_scans: todayLogs.length,
+    present: statuses.filter((s) => s.type === 'in').length,
+    left: statuses.filter((s) => s.type === 'out').length,
+    logs: todayLogs.sort((a, b) => (a.created_at < b.created_at ? 1 : -1)),
+  }
 }
 
 /* ============ PET HOTEL / PENITIPAN ============ */
