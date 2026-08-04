@@ -20,6 +20,9 @@
         <div class="sidebar-brand">
             <div class="logo">🐾</div>
             <div class="brand-text">PetShop<br>E-POS</div>
+            <button type="button" class="btn-sidebar-close" id="sidebarClose" title="Sembunyikan menu" aria-label="Sembunyikan menu">
+                <i class="bi bi-chevron-left"></i>
+            </button>
         </div>
 
         <nav class="sidebar-menu">
@@ -65,10 +68,12 @@
         </nav>
     </aside>
 
-    <div class="main-wrapper">
+    <div class="main-wrapper" id="mainWrapper">
         <header class="topbar">
             <div class="topbar-left">
-                <button class="btn-toggle" id="sidebarToggle"><i class="bi bi-list"></i></button>
+                <button class="btn-toggle" id="sidebarToggle" title="Toggle menu" aria-label="Toggle sidebar">
+                    <i class="bi bi-list" id="sidebarToggleIcon"></i>
+                </button>
             </div>
             <div class="topbar-right">
                 <div class="topbar-info">
@@ -128,9 +133,44 @@
     </div>
 
     <script>
-        document.getElementById('sidebarToggle')?.addEventListener('click', () => {
-            document.getElementById('sidebar').classList.toggle('show');
-        });
+        (function () {
+            const KEY = 'kasir_dzikra_sidebar_collapsed';
+            const sidebar = document.getElementById('sidebar');
+            const main = document.getElementById('mainWrapper');
+            const toggleBtn = document.getElementById('sidebarToggle');
+            const closeBtn = document.getElementById('sidebarClose');
+            const icon = document.getElementById('sidebarToggleIcon');
+
+            function isMobile() {
+                return window.matchMedia('(max-width: 992px)').matches;
+            }
+
+            function applyDesktopCollapsed(collapsed) {
+                sidebar.classList.toggle('collapsed', collapsed);
+                main.classList.toggle('sidebar-collapsed', collapsed);
+                if (icon) {
+                    icon.className = collapsed ? 'bi bi-layout-sidebar' : 'bi bi-list';
+                }
+            }
+
+            // restore preference (desktop)
+            if (!isMobile() && localStorage.getItem(KEY) === '1') {
+                applyDesktopCollapsed(true);
+            }
+
+            function toggle() {
+                if (isMobile()) {
+                    sidebar.classList.toggle('show');
+                    return;
+                }
+                const next = !sidebar.classList.contains('collapsed');
+                applyDesktopCollapsed(next);
+                localStorage.setItem(KEY, next ? '1' : '0');
+            }
+
+            toggleBtn?.addEventListener('click', toggle);
+            closeBtn?.addEventListener('click', toggle);
+        })();
 
         setTimeout(() => {
             const alert = document.getElementById('alertBox');

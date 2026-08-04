@@ -40,10 +40,23 @@ const BOTTOM = [
   { to: '/products', icon: 'bi-box-seam', label: 'Stok', roles: ['admin', 'owner'] },
 ]
 
+const SIDEBAR_KEY = 'kasir_dzikra_sidebar_collapsed'
+
+function isMobileLayout() {
+  return typeof window !== 'undefined' && window.matchMedia('(max-width: 992px)').matches
+}
+
 export default function Layout() {
   const { user, signOut, can } = useAuth()
   const { toast, dismiss } = useToast()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem(SIDEBAR_KEY) === '1'
+    } catch {
+      return false
+    }
+  })
   const navigate = useNavigate()
 
   function handleLogout() {
@@ -51,14 +64,41 @@ export default function Layout() {
     navigate('/login', { replace: true })
   }
 
+  function toggleSidebar() {
+    if (isMobileLayout()) {
+      setSidebarOpen((o) => !o)
+      return
+    }
+    setSidebarCollapsed((c) => {
+      const next = !c
+      try {
+        localStorage.setItem(SIDEBAR_KEY, next ? '1' : '0')
+      } catch { /* ignore */ }
+      return next
+    })
+  }
+
+  function closeMobileSidebar() {
+    setSidebarOpen(false)
+  }
+
   const bottomItems = BOTTOM.filter((i) => can(...i.roles)).slice(0, 5)
 
   return (
     <>
-      <aside className={`sidebar ${sidebarOpen ? 'show' : ''}`}>
+      <aside className={`sidebar ${sidebarOpen ? 'show' : ''} ${sidebarCollapsed ? 'collapsed' : ''}`}>
         <div className="sidebar-brand">
           <div className="logo">🐾</div>
           <div className="brand-text">PetShop<br />Dzikra</div>
+          <button
+            type="button"
+            className="btn-sidebar-close"
+            onClick={toggleSidebar}
+            title="Sembunyikan menu"
+            aria-label="Sembunyikan menu"
+          >
+            <i className="bi bi-chevron-left"></i>
+          </button>
         </div>
         <nav className="sidebar-menu">
           {MENU.map((section) => {
@@ -72,7 +112,7 @@ export default function Layout() {
                     key={i.to}
                     to={i.to}
                     className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
-                    onClick={() => setSidebarOpen(false)}
+                    onClick={closeMobileSidebar}
                   >
                     <i className={`bi ${i.icon}`}></i> {i.label}
                   </NavLink>
@@ -83,13 +123,18 @@ export default function Layout() {
         </nav>
       </aside>
 
-      <div className={`sidebar-backdrop ${sidebarOpen ? 'show' : ''}`} onClick={() => setSidebarOpen(false)} />
+      <div className={`sidebar-backdrop ${sidebarOpen ? 'show' : ''}`} onClick={closeMobileSidebar} />
 
-      <div className="main-wrapper">
+      <div className={`main-wrapper ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
         <header className="topbar">
           <div className="topbar-left">
-            <button className="btn-toggle" onClick={() => setSidebarOpen((o) => !o)}>
-              <i className="bi bi-list"></i>
+            <button
+              className="btn-toggle"
+              onClick={toggleSidebar}
+              title={sidebarCollapsed || sidebarOpen ? 'Tampilkan menu' : 'Sembunyikan menu'}
+              aria-label="Toggle sidebar"
+            >
+              <i className={`bi ${sidebarCollapsed && !sidebarOpen ? 'bi-layout-sidebar' : 'bi-list'}`}></i>
             </button>
           </div>
           <div className="topbar-right">
