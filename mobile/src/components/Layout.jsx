@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
+import { getShopSettings } from '../db/store'
 
 const MENU = [
   { group: 'Utama', items: [{ to: '/dashboard', icon: 'bi-house-door', label: 'Beranda', roles: ['admin', 'kasir', 'owner'] }] },
@@ -27,6 +28,7 @@ const MENU = [
   {
     group: 'Pengaturan',
     items: [
+      { to: '/settings', icon: 'bi-shop', label: 'Toko & Struk', roles: ['admin', 'owner'] },
       { to: '/categories', icon: 'bi-tags', label: 'Kategori Barang', roles: ['admin'] },
       { to: '/users', icon: 'bi-people', label: 'Pengguna', roles: ['admin', 'owner'] },
     ],
@@ -84,13 +86,19 @@ export default function Layout() {
   }
 
   const bottomItems = BOTTOM.filter((i) => can(...i.roles)).slice(0, 5)
+  const shop = getShopSettings()
+  const brandLines = (shop.shop_name || 'PetShop Dzikra').split(/\s+/)
+  const brandLine1 = brandLines[0] || 'PetShop'
+  const brandLine2 = brandLines.slice(1).join(' ') || 'Dzikra'
 
   return (
     <>
       <aside className={`sidebar ${sidebarOpen ? 'show' : ''} ${sidebarCollapsed ? 'collapsed' : ''}`}>
         <div className="sidebar-brand">
-          <div className="logo">🐾</div>
-          <div className="brand-text">PetShop<br />Dzikra</div>
+          <div className="logo">
+            {shop.logo ? <img src={shop.logo} alt="" /> : '🐾'}
+          </div>
+          <div className="brand-text">{brandLine1}{brandLine2 ? <><br />{brandLine2}</> : null}</div>
           <button
             type="button"
             className="btn-sidebar-close"
@@ -140,8 +148,8 @@ export default function Layout() {
           </div>
           <div className="topbar-right">
             <div className="topbar-info">
-              <strong>PetShop Dzikra</strong>
-              Toko & penitipan hewan
+              <strong>{shop.shop_name}</strong>
+              {shop.tagline || 'Toko & penitipan hewan'}
             </div>
             <div className="badge-role">
               <i className="bi bi-shield-check"></i>
@@ -176,7 +184,7 @@ export default function Layout() {
         </main>
 
         <footer className="footer">
-          &copy; {new Date().getFullYear()} PetShop Dzikra — Mudah dipakai untuk toko hewan
+          &copy; {new Date().getFullYear()} {shop.shop_name} — {shop.tagline || 'Mudah dipakai untuk toko hewan'}
         </footer>
       </div>
 

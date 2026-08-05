@@ -1,6 +1,6 @@
 import { useMemo, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { getTransaction } from '../db/store'
+import { getTransaction, getShopSettings } from '../db/store'
 import { useAuth } from '../context/AuthContext'
 import { rupiah, dateTimeShort } from '../utils/format'
 
@@ -20,6 +20,7 @@ export default function Receipt() {
   const { user } = useAuth()
   const navigate = useNavigate()
   const result = useMemo(() => getTransaction(id, user), [id, user])
+  const shop = useMemo(() => getShopSettings(), [])
 
   useEffect(() => {
     document.body.style.background = '#fff'
@@ -34,13 +35,25 @@ export default function Receipt() {
   const line = { borderTop: '1px dashed #000', margin: '8px 0' }
   const td = { padding: '2px 0', verticalAlign: 'top' }
   const right = { ...td, textAlign: 'right' }
+  const title = shop.receipt_name || shop.shop_name || 'Toko'
 
   return (
     <div style={wrapStyle}>
       <style>{`@media print { .no-print { display: none !important; } body { background:#fff; } }`}</style>
-      <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: 16 }}>🐾 PetShop Dzikra</div>
-      <div style={{ textAlign: 'center', fontSize: 11, margin: '4px 0' }}>Jl. Pet Shop No. 1, Indonesia</div>
-      <div style={{ textAlign: 'center', fontSize: 11 }}>Telp: 0812-3456-7890</div>
+      {shop.logo ? (
+        <div style={{ textAlign: 'center', marginBottom: 6 }}>
+          <img src={shop.logo} alt="" style={{ maxWidth: 120, maxHeight: 72, objectFit: 'contain' }} />
+        </div>
+      ) : null}
+      <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: 16 }}>
+        {shop.logo ? title : `🐾 ${title}`}
+      </div>
+      {shop.address && (
+        <div style={{ textAlign: 'center', fontSize: 11, margin: '4px 0', whiteSpace: 'pre-wrap' }}>{shop.address}</div>
+      )}
+      {shop.phone && (
+        <div style={{ textAlign: 'center', fontSize: 11 }}>Telp: {shop.phone}</div>
+      )}
       <div style={line}></div>
 
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -86,8 +99,10 @@ export default function Receipt() {
       </table>
 
       <div style={line}></div>
-      <div style={{ textAlign: 'center', marginTop: 8 }}>Terima kasih atas kunjungan Anda!</div>
-      <div style={{ textAlign: 'center', fontSize: 10, marginTop: 4 }}>Barang yang sudah dibeli tidak dapat ditukar</div>
+      <div style={{ textAlign: 'center', marginTop: 8 }}>{shop.receipt_footer || 'Terima kasih atas kunjungan Anda!'}</div>
+      {shop.receipt_note && (
+        <div style={{ textAlign: 'center', fontSize: 10, marginTop: 4 }}>{shop.receipt_note}</div>
+      )}
 
       <div className="no-print" style={{ textAlign: 'center', marginTop: 20 }}>
         <button onClick={() => window.print()} style={{ padding: '8px 24px', cursor: 'pointer', fontSize: 14 }}>🖨️ Cetak Struk</button>

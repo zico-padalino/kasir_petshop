@@ -24,6 +24,7 @@ import ActivityLogs from './pages/ActivityLogs'
 import CashDrawer from './pages/CashDrawer'
 import Attendance from './pages/Attendance'
 import AttendanceForm from './pages/AttendanceForm'
+import ShopSettings from './pages/ShopSettings'
 
 export default function App() {
   const { ready } = useAuth()
@@ -195,6 +196,14 @@ export default function App() {
           element={
             <ProtectedRoute roles={['admin']}>
               <ProductForm />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute roles={['admin', 'owner']}>
+              <ShopSettings />
             </ProtectedRoute>
           }
         />

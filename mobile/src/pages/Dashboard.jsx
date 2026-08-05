@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { getDashboardStats } from '../db/store'
+import { getDashboardStats, getShopSettings } from '../db/store'
 import { useAuth } from '../context/AuthContext'
 import { rupiah, dateTimeShort } from '../utils/format'
 
@@ -101,11 +101,20 @@ const ACTIONS = [
     color: 'green',
     roles: ['admin', 'owner'],
   },
+  {
+    to: '/settings',
+    emoji: '🏪',
+    title: 'Toko & Struk',
+    desc: 'Nama, logo, teks struk',
+    color: 'teal',
+    roles: ['admin', 'owner'],
+  },
 ]
 
 export default function Dashboard() {
   const { user, can } = useAuth()
   const { stats, lowStock, recentTransactions } = useMemo(() => getDashboardStats(), [])
+  const shop = getShopSettings()
   const actions = ACTIONS.filter((a) => can(...a.roles))
   const hour = new Date().getHours()
   const greeting = hour < 11 ? 'Selamat pagi' : hour < 15 ? 'Selamat siang' : hour < 18 ? 'Selamat sore' : 'Selamat malam'
@@ -115,10 +124,12 @@ export default function Dashboard() {
       <div className="home-hero">
         <div className="home-hero-text">
           <p className="home-greet">{greeting}, {user?.name?.split(' ')[0] || 'Kak'} 👋</p>
-          <h1 className="home-title">PetShop Dzikra</h1>
-          <p className="home-sub">Toko & penitipan hewan — pilih menu di bawah untuk mulai</p>
+          <h1 className="home-title">{shop.shop_name}</h1>
+          <p className="home-sub">{shop.tagline || 'Toko & penitipan hewan — pilih menu di bawah untuk mulai'}</p>
         </div>
-        <div className="home-hero-paw">🐾</div>
+        <div className="home-hero-paw">
+          {shop.logo ? <img src={shop.logo} alt="" style={{ width: 56, height: 56, borderRadius: 14, objectFit: 'cover' }} /> : '🐾'}
+        </div>
       </div>
 
       <h2 className="home-section-title">Mau ngapain hari ini?</h2>

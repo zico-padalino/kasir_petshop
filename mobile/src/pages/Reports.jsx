@@ -1,11 +1,12 @@
 import { useState, useMemo } from 'react'
-import { getReport, getBookkeeping } from '../db/store'
+import { getReport, getBookkeeping, getShopSettings } from '../db/store'
 import { rupiah, dateShort, dateTimeShort, todayInput, monthStartInput } from '../utils/format'
 
 export default function Reports() {
   const [dateFrom, setDateFrom] = useState(monthStartInput())
   const [dateTo, setDateTo] = useState(todayInput())
   const [applied, setApplied] = useState({ dateFrom: monthStartInput(), dateTo: todayInput() })
+  const shop = getShopSettings()
 
   const { summary, byPayment, byCashier, topProducts, dailySales } = useMemo(
     () => getReport(applied),
@@ -55,7 +56,7 @@ export default function Reports() {
     <>
       {/* Kop hanya tampil saat dicetak */}
       <div className="print-header">
-        <h2>🐾 PetShop Dzikra — Rekapan Pembukuan</h2>
+        <h2>🐾 {shop.shop_name} — Rekapan Pembukuan</h2>
         <p>Jl. Pet Shop No. 1, Indonesia · Telp: 0812-3456-7890</p>
         <p>Periode: {dateShort(applied.dateFrom + ' 00:00:00')} s/d {dateShort(applied.dateTo + ' 00:00:00')}</p>
       </div>

@@ -55,6 +55,23 @@ function ensureSchema(db) {
     if (typeof db.attendance_settings.enforce !== 'boolean') db.attendance_settings.enforce = false
     if (db.attendance_settings.label == null) db.attendance_settings.label = 'PetShop Dzikra'
   }
+  if (!db.shop_settings || typeof db.shop_settings !== 'object') {
+    db.shop_settings = {
+      shop_name: 'PetShop Dzikra',
+      receipt_name: 'PetShop Dzikra',
+      tagline: 'Toko & penitipan hewan',
+      address: 'Jl. Pet Shop No. 1, Indonesia',
+      phone: '0812-3456-7890',
+      receipt_footer: 'Terima kasih atas kunjungan Anda!',
+      receipt_note: 'Barang yang sudah dibeli tidak dapat ditukar',
+      logo: null,
+      updated_at: null,
+    }
+  } else {
+    if (!db.shop_settings.shop_name) db.shop_settings.shop_name = 'PetShop Dzikra'
+    if (!db.shop_settings.receipt_name) db.shop_settings.receipt_name = db.shop_settings.shop_name
+    if (db.shop_settings.logo === undefined) db.shop_settings.logo = null
+  }
   // pastikan tiap produk punya barcode (untuk scan kasir)
   if (Array.isArray(db.products)) {
     db.products.forEach((p, i) => {
@@ -349,6 +366,57 @@ export function getActivityLogs({ module = '', search = '', dateFrom = '', dateT
   }
   rows.sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
   return rows.slice(0, limit)
+}
+
+/* ============ TOKO / STRUK ============ */
+
+const DEFAULT_SHOP_SETTINGS = {
+  shop_name: 'PetShop Dzikra',
+  receipt_name: 'PetShop Dzikra',
+  tagline: 'Toko & penitipan hewan',
+  address: 'Jl. Pet Shop No. 1, Indonesia',
+  phone: '0812-3456-7890',
+  receipt_footer: 'Terima kasih atas kunjungan Anda!',
+  receipt_note: 'Barang yang sudah dibeli tidak dapat ditukar',
+  logo: null,
+  updated_at: null,
+}
+
+export function getShopSettings() {
+  const db = load()
+  return { ...DEFAULT_SHOP_SETTINGS, ...(db.shop_settings || {}) }
+}
+
+export function saveShopSettings(data, actor = null) {
+  const db = load()
+  const shop_name = String(data.shop_name || '').trim()
+  if (!shop_name) return { ok: false, message: 'Nama toko wajib diisi.' }
+  const receipt_name = String(data.receipt_name || shop_name).trim() || shop_name
+  let logo = data.logo === undefined ? (db.shop_settings?.logo ?? null) : data.logo
+  if (logo === '') logo = null
+  // batasi ukuran logo base64 (~400 KB teks)
+  if (logo && logo.length > 450000) {
+    return { ok: false, message: 'Logo terlalu besar. Gunakan gambar lebih kecil.' }
+  }
+  db.shop_settings = {
+    shop_name,
+    receipt_name,
+    tagline: String(data.tagline || '').trim(),
+    address: String(data.address || '').trim(),
+    phone: String(data.phone || '').trim(),
+    receipt_footer: String(data.receipt_footer || DEFAULT_SHOP_SETTINGS.receipt_footer).trim(),
+    receipt_note: String(data.receipt_note || DEFAULT_SHOP_SETTINGS.receipt_note).trim(),
+    logo,
+    updated_at: nowIso(),
+  }
+  pushLog(db, {
+    user: actor,
+    action: 'settings',
+    module: 'shop',
+    description: `Mengubah pengaturan toko / struk (${shop_name})`,
+  })
+  save(db)
+  return { ok: true, message: 'Pengaturan toko & struk disimpan.', settings: db.shop_settings }
 }
 
 /* ============ AUTH ============ */

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { unlockAttendanceSession } from '../utils/attendanceSession'
+import { getShopSettings } from '../db/store'
 
 const DEMOS = [
   { label: 'Admin (semua fitur)', email: 'admin@petshop.com', emoji: '👑' },
@@ -19,6 +20,7 @@ export default function Login() {
   const [showPass, setShowPass] = useState(false)
 
   const redirectTo = location.state?.from || '/dashboard'
+  const shop = getShopSettings()
 
   useEffect(() => {
     if (user) goAfterLogin(redirectTo)
@@ -51,9 +53,11 @@ export default function Login() {
     <div className="login-page">
       <div className="login-card">
         <div className="login-logo">
-          <div className="logo">🐾</div>
-          <h2>PetShop Dzikra</h2>
-          <p>Kasir & penitipan hewan — mudah dipakai</p>
+          <div className="logo">
+            {shop.logo ? <img src={shop.logo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : '🐾'}
+          </div>
+          <h2>{shop.shop_name}</h2>
+          <p>{shop.tagline || 'Kasir & penitipan hewan — mudah dipakai'}</p>
         </div>
 
         {error && (
