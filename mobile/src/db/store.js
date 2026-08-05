@@ -78,6 +78,7 @@ function ensureSchema(db) {
       if (!p.barcode) {
         p.barcode = `8991001${String(p.id || i + 1).padStart(6, '0')}`
       }
+      if (p.photo === undefined) p.photo = null
     })
   }
   // barcode device karyawan untuk absensi
@@ -678,6 +679,11 @@ export function createProduct(data) {
   if (db.products.some((p) => p.barcode && normalizeScanCode(p.barcode) === barcode)) {
     return { ok: false, message: 'Barcode sudah digunakan.' }
   }
+  let photo = data.photo === undefined ? null : data.photo
+  if (photo === '') photo = null
+  if (photo && photo.length > 350000) {
+    return { ok: false, message: 'Foto produk terlalu besar. Gunakan gambar lebih kecil.' }
+  }
   db.products.push({
     id,
     category_id: categoryId,
@@ -687,6 +693,7 @@ export function createProduct(data) {
     description: data.description?.trim() || null,
     price: Number(data.price) || 0,
     stock: Number(data.stock) || 0,
+    photo,
     is_active: data.is_active ? 1 : 0,
   })
   pushLog(db, { action: 'create', module: 'product', description: `Menambah produk "${data.name.trim()}" (${sku})` })
@@ -704,12 +711,18 @@ export function updateProduct(id, data) {
   if (db.products.some((p) => p.barcode && normalizeScanCode(p.barcode) === barcode && p.id !== Number(id))) {
     return { ok: false, message: 'Barcode sudah digunakan produk lain.' }
   }
+  let photo = data.photo === undefined ? (prod.photo ?? null) : data.photo
+  if (photo === '') photo = null
+  if (photo && photo.length > 350000) {
+    return { ok: false, message: 'Foto produk terlalu besar. Gunakan gambar lebih kecil.' }
+  }
   prod.category_id = Number(data.category_id)
   prod.barcode = barcode
   prod.name = data.name.trim()
   prod.description = data.description?.trim() || null
   prod.price = Number(data.price) || 0
   prod.stock = Number(data.stock) || 0
+  prod.photo = photo
   prod.is_active = data.is_active ? 1 : 0
   pushLog(db, { action: 'update', module: 'product', description: `Mengubah produk "${prod.name}" (${sku})` })
   save(db)

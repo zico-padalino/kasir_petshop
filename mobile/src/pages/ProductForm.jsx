@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, lazy, Suspense } from 'react'
+import { useState, useMemo, useEffect, useRef, lazy, Suspense } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
 import {
   getCategories,
@@ -13,11 +13,38 @@ import RupiahInput from '../components/RupiahInput'
 
 const BarcodeScanner = lazy(() => import('../components/BarcodeScanner'))
 
+function compressProductPhoto(file, maxW = 320, quality = 0.7) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const img = new Image()
+      img.onload = () => {
+        const scale = Math.min(1, maxW / img.width)
+        const w = Math.round(img.width * scale)
+        const h = Math.round(img.height * scale)
+        const canvas = document.createElement('canvas')
+        canvas.width = w
+        canvas.height = h
+        const ctx = canvas.getContext('2d')
+        ctx.fillStyle = '#fff'
+        ctx.fillRect(0, 0, w, h)
+        ctx.drawImage(img, 0, 0, w, h)
+        resolve(canvas.toDataURL('image/jpeg', quality))
+      }
+      img.onerror = () => reject(new Error('Gagal membaca gambar.'))
+      img.src = reader.result
+    }
+    reader.onerror = () => reject(new Error('Gagal membaca file.'))
+    reader.readAsDataURL(file)
+  })
+}
+
 export default function ProductForm() {
   const { id } = useParams()
   const isEdit = Boolean(id)
   const navigate = useNavigate()
   const toast = useToast()
+  const fileRef = useRef(null)
   const categories = useMemo(() => getCategories(), [])
   const existing = useMemo(() => (isEdit ? getProduct(id) : null), [id, isEdit])
 
@@ -29,9 +56,11 @@ export default function ProductForm() {
     name: existing?.name ?? '',
     description: existing?.description ?? '',
     stock: existing?.stock ?? 0,
+    photo: existing?.photo ?? null,
     is_active: existing ? Boolean(existing.is_active) : true,
   }))
   const [scanOpen, setScanOpen] = useState(false)
+  const [photoBusy, setPhotoBusy] = useState(false)
 
   useEffect(() => {
     if (isEdit) return
@@ -45,6 +74,26 @@ export default function ProductForm() {
 
   function set(k, v) {
     setForm((f) => ({ ...f, [k]: v }))
+  }
+
+  async function onPhotoPick(e) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      toast.error('File harus berupa gambar.')
+      return
+    }
+    setPhotoBusy(true)
+    try {
+      const dataUrl = await compressProductPhoto(file)
+      set('photo', dataUrl)
+      toast.success('Foto produk siap. Simpan untuk menerapkan.')
+    } catch (err) {
+      toast.error(err.message || 'Gagal memproses foto.')
+    } finally {
+      setPhotoBusy(false)
+    }
   }
 
   function submit(e) {
@@ -144,6 +193,31 @@ export default function ProductForm() {
             <div className="form-group">
               <label className="form-label">Nama Produk *</label>
               <input type="text" className="form-control" value={form.name} onChange={(e) => set('name', e.target.value)} required />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Foto produk</label>
+              <div className="product-photo-row">
+                <div className="product-photo-preview">
+                  {form.photo ? <img src={form.photo} alt="" /> : <span>📦</span>}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <input ref={fileRef} type="file" accept="image/*" hidden onChange={onPhotoPick} />
+                  <button
+                    type="button"
+                    className="btn btn-outline btn-sm"
+                    disabled={photoBusy}
+                    onClick={() => fileRef.current?.click()}
+                  >
+                    <i className="bi bi-image"></i> {photoBusy ? 'Memproses...' : 'Unggah foto'}
+                  </button>
+                  {form.photo && (
+                    <button type="button" className="btn btn-outline btn-sm" onClick={() => set('photo', null)}>
+                      Hapus foto
+                    </button>
+                  )}
+                </div>
+              </div>
+              <small style={{ color: '#888', fontSize: 12 }}>Tampil di kartu kasir. PNG/JPG, otomatis diperkecil.</small>
             </div>
             <div className="form-group">
               <label className="form-label">Deskripsi</label>

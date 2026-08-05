@@ -367,7 +367,9 @@ export default function Pos() {
             <div className="product-grid">
               {products.map((p) => (
                 <div key={p.id} className="product-card" onClick={() => addToCart(p)}>
-                  <div className="product-icon">{productIcon(p.category_name)}</div>
+                  <div className={`product-icon ${p.photo ? 'has-photo' : ''}`}>
+                    {p.photo ? <img src={p.photo} alt="" /> : productIcon(p.category_name)}
+                  </div>
                   <div className="product-name">{p.name}</div>
                   <div className="product-price">{rupiah(p.price)}</div>
                   <div className="product-stock">Stok: {p.stock} · {p.sku}</div>

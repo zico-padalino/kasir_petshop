@@ -64,7 +64,7 @@ export default function Products() {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>SKU</th><th>Barcode</th><th>Nama Produk</th><th>Kategori</th><th>Harga</th><th>Stok</th><th>Status</th>
+                  <th>SKU</th><th>Barcode</th><th>Produk</th><th>Kategori</th><th>Harga</th><th>Stok</th><th>Status</th>
                   {isAdmin && <th>Aksi</th>}
                 </tr>
               </thead>
@@ -73,7 +73,14 @@ export default function Products() {
                   <tr key={p.id}>
                     <td><code>{p.sku}</code></td>
                     <td><code style={{ fontSize: 11 }}>{p.barcode || '—'}</code></td>
-                    <td>{p.name}</td>
+                    <td>
+                      <div className="product-list-name">
+                        <span className="product-list-thumb">
+                          {p.photo ? <img src={p.photo} alt="" /> : '📦'}
+                        </span>
+                        <strong>{p.name}</strong>
+                      </div>
+                    </td>
                     <td>{p.category_name}</td>
                     <td>{rupiah(p.price)}</td>
                     <td>{p.stock <= 10 ? <span className="badge badge-warning">{p.stock}</span> : p.stock}</td>
