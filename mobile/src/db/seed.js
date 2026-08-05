@@ -75,6 +75,14 @@ const BASE = {
 
   activity_logs: [],
   attendance_logs: [],
+  attendance_settings: {
+    label: 'PetShop Dzikra',
+    latitude: null,
+    longitude: null,
+    radius_m: 100,
+    enforce: false,
+    updated_at: null,
+  },
 }
 
 /* ---------- util generator ---------- */

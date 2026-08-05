@@ -41,6 +41,20 @@ function ensureSchema(db) {
   if (!db.cash_drawer || !Array.isArray(db.cash_movements)) {
     migrateCashDrawer(db)
   }
+  if (!db.attendance_settings || typeof db.attendance_settings !== 'object') {
+    db.attendance_settings = {
+      label: 'PetShop Dzikra',
+      latitude: null,
+      longitude: null,
+      radius_m: 100,
+      enforce: false,
+      updated_at: null,
+    }
+  } else {
+    if (db.attendance_settings.radius_m == null) db.attendance_settings.radius_m = 100
+    if (typeof db.attendance_settings.enforce !== 'boolean') db.attendance_settings.enforce = false
+    if (db.attendance_settings.label == null) db.attendance_settings.label = 'PetShop Dzikra'
+  }
   // pastikan tiap produk punya barcode (untuk scan kasir)
   if (Array.isArray(db.products)) {
     db.products.forEach((p, i) => {
@@ -1177,6 +1191,106 @@ export function attendancePathFromScan(code) {
   return '/attendance/form?unlock=1'
 }
 
+const DEFAULT_ATT_SETTINGS = {
+  label: 'PetShop Dzikra',
+  latitude: null,
+  longitude: null,
+  radius_m: 100,
+  enforce: false,
+  updated_at: null,
+}
+
+/** Haversine distance in meters */
+export function distanceMeters(lat1, lng1, lat2, lng2) {
+  const toRad = (d) => (Number(d) * Math.PI) / 180
+  const R = 6371000
+  const dLat = toRad(lat2 - lat1)
+  const dLng = toRad(lng2 - lng1)
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2
+  return 2 * R * Math.asin(Math.sqrt(a))
+}
+
+export function getAttendanceSettings() {
+  const db = load()
+  return { ...DEFAULT_ATT_SETTINGS, ...(db.attendance_settings || {}) }
+}
+
+export function saveAttendanceSettings(data, actor = null) {
+  const db = load()
+  const lat = data.latitude === '' || data.latitude == null ? null : Number(data.latitude)
+  const lng = data.longitude === '' || data.longitude == null ? null : Number(data.longitude)
+  if (lat != null && (Number.isNaN(lat) || lat < -90 || lat > 90)) {
+    return { ok: false, message: 'Latitude tidak valid (-90 s/d 90).' }
+  }
+  if (lng != null && (Number.isNaN(lng) || lng < -180 || lng > 180)) {
+    return { ok: false, message: 'Longitude tidak valid (-180 s/d 180).' }
+  }
+  if ((lat == null) !== (lng == null)) {
+    return { ok: false, message: 'Latitude dan longitude harus diisi berpasangan.' }
+  }
+  const radius = Math.max(10, Math.min(5000, Number(data.radius_m) || 100))
+  db.attendance_settings = {
+    label: String(data.label || 'PetShop Dzikra').trim() || 'PetShop Dzikra',
+    latitude: lat,
+    longitude: lng,
+    radius_m: radius,
+    enforce: Boolean(data.enforce),
+    updated_at: nowIso(),
+  }
+  pushLog(db, {
+    user: actor,
+    action: 'settings',
+    module: 'attendance',
+    description: `Mengubah lokasi absensi${lat != null ? ` (${lat.toFixed(5)}, ${lng.toFixed(5)}, radius ${radius}m)` : ' (belum diset)'}`,
+  })
+  save(db)
+  return { ok: true, message: 'Pengaturan lokasi absensi disimpan.', settings: db.attendance_settings }
+}
+
+/** Cek posisi user terhadap lokasi toko yang diset */
+export function checkAttendanceLocation(location) {
+  const settings = getAttendanceSettings()
+  if (settings.latitude == null || settings.longitude == null) {
+    return {
+      ok: true,
+      configured: false,
+      message: 'Lokasi toko belum diatur.',
+      settings,
+      distance_m: null,
+      within: true,
+    }
+  }
+  if (!location || location.latitude == null || location.longitude == null) {
+    return {
+      ok: false,
+      configured: true,
+      message: 'Lokasi GPS belum tersedia.',
+      settings,
+      distance_m: null,
+      within: false,
+    }
+  }
+  const distance_m = distanceMeters(
+    location.latitude,
+    location.longitude,
+    settings.latitude,
+    settings.longitude
+  )
+  const within = distance_m <= Number(settings.radius_m || 100)
+  return {
+    ok: true,
+    configured: true,
+    settings,
+    distance_m,
+    within,
+    message: within
+      ? `Dalam radius toko (±${Math.round(distance_m)} m)`
+      : `Di luar radius toko (±${Math.round(distance_m)} m, batas ${settings.radius_m} m)`,
+  }
+}
+
 function lastAttendanceToday(db, userId) {
   const today = todayStr()
   const rows = (db.attendance_logs || [])
@@ -1225,6 +1339,15 @@ export function clockAttendance({
   }
 
   const db = load()
+  const geo = checkAttendanceLocation(location)
+  if (geo.configured && geo.settings.enforce && !geo.within) {
+    return {
+      ok: false,
+      message: `Absen ditolak: Anda di luar area ${geo.settings.label || 'toko'} (${Math.round(geo.distance_m)} m, batas ${geo.settings.radius_m} m).`,
+      distance_m: geo.distance_m,
+    }
+  }
+
   const employee = db.users.find((u) => u.id === Number(userId))
   if (!employee || !employee.is_active) {
     return { ok: false, message: 'Pegawai tidak ditemukan / tidak aktif.' }
@@ -1246,6 +1369,8 @@ export function clockAttendance({
     latitude: Number(location.latitude),
     longitude: Number(location.longitude),
     accuracy: location.accuracy != null ? Number(location.accuracy) : null,
+    distance_m: geo.distance_m != null ? Math.round(geo.distance_m) : null,
+    within_radius: geo.configured ? geo.within : null,
     scanned_by_user_id: actor?.id ?? null,
     note: null,
     meta: { source },
@@ -1255,6 +1380,7 @@ export function clockAttendance({
   trimAttendanceStorage(db)
 
   const label = type === 'in' ? 'masuk' : 'pulang'
+  const distNote = geo.distance_m != null ? `, jarak ${Math.round(geo.distance_m)}m` : ''
   pushLog(db, {
     user: actor || {
       id: employee.id,
@@ -1263,7 +1389,7 @@ export function clockAttendance({
     },
     action: type === 'in' ? 'clock_in' : 'clock_out',
     module: 'attendance',
-    description: `${employee.name} absen ${label} (GPS ${row.latitude.toFixed(5)}, ${row.longitude.toFixed(5)})`,
+    description: `${employee.name} absen ${label} (GPS ${row.latitude.toFixed(5)}, ${row.longitude.toFixed(5)}${distNote})`,
     meta: { attendance_id: row.id, type },
   })
   save(db)
@@ -1275,6 +1401,7 @@ export function clockAttendance({
       ? `${employee.name} berhasil absen MASUK`
       : `${employee.name} berhasil absen PULANG`,
     record: row,
+    distance_m: geo.distance_m,
     user: {
       id: employee.id,
       name: employee.name,

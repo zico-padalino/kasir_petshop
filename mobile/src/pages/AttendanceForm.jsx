@@ -5,6 +5,7 @@ import {
   getAttendanceBarcode,
   getUsers,
   peekNextAttendanceType,
+  checkAttendanceLocation,
 } from '../db/store'
 import { useAuth } from '../context/AuthContext'
 import { isAttendanceUnlocked, unlockAttendanceSession, clearAttendanceSession } from '../utils/attendanceSession'
@@ -169,6 +170,7 @@ export default function AttendanceForm() {
   const [feedback, setFeedback] = useState(null)
 
   const nextType = useMemo(() => peekNextAttendanceType(employeeId), [employeeId])
+  const geoCheck = useMemo(() => checkAttendanceLocation(location), [location])
 
   useEffect(() => {
     const fromQr = searchParams.get('unlock') === '1'
@@ -311,7 +313,7 @@ export default function AttendanceForm() {
             <SelfieBox selfie={selfie} onCapture={setSelfie} onClear={() => setSelfie(null)} />
           </div>
 
-          <div className="form-group">
+            <div className="form-group">
             <label className="form-label">Lokasi GPS *</label>
             <div className="att-geo-box">
               {locLoading ? (
@@ -322,6 +324,15 @@ export default function AttendanceForm() {
                   <div><strong>Lng:</strong> {location.longitude.toFixed(6)}</div>
                   {location.accuracy != null && (
                     <div><strong>Akurasi:</strong> ±{Math.round(location.accuracy)} m</div>
+                  )}
+                  {geoCheck.configured && (
+                    <div className={`att-radius-status ${geoCheck.within ? 'ok' : 'err'}`}>
+                      {geoCheck.within ? '✓' : '✗'} {geoCheck.message}
+                      {geoCheck.settings.enforce && !geoCheck.within && ' — absen akan ditolak'}
+                    </div>
+                  )}
+                  {!geoCheck.configured && (
+                    <div style={{ fontSize: 12, color: '#888' }}>Lokasi toko belum diatur (absen tetap diizinkan)</div>
                   )}
                   <a href={mapsLink(location.latitude, location.longitude)} target="_blank" rel="noreferrer">
                     Buka di Google Maps
@@ -340,7 +351,12 @@ export default function AttendanceForm() {
             type="submit"
             className="btn btn-success"
             style={{ width: '100%', justifyContent: 'center', padding: 12 }}
-            disabled={submitting || !employeeId || !selfie}
+            disabled={
+              submitting ||
+              !employeeId ||
+              !selfie ||
+              (geoCheck.configured && geoCheck.settings.enforce && !geoCheck.within)
+            }
           >
             <i className="bi bi-check2-circle"></i>{' '}
             {submitting ? 'Menyimpan...' : `Simpan Absen ${nextType === 'in' ? 'Masuk' : 'Pulang'}`}

@@ -6,6 +6,8 @@ import {
   getAttendanceFormUrl,
   getAttendanceLogs,
   getAttendanceTodaySummary,
+  getAttendanceSettings,
+  saveAttendanceSettings,
   attendancePathFromScan,
 } from '../db/store'
 import { useAuth } from '../context/AuthContext'
@@ -34,11 +36,189 @@ function mapsLink(lat, lng) {
   return `https://www.google.com/maps?q=${lat},${lng}`
 }
 
+function getGeoPosition() {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error('GPS tidak didukung di perangkat ini.'))
+      return
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        resolve({
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+        })
+      },
+      () => reject(new Error('Gagal membaca lokasi GPS.')),
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    )
+  })
+}
+
+function LocationSettings({ actor, onSaved }) {
+  const current = getAttendanceSettings()
+  const [form, setForm] = useState({
+    label: current.label || 'PetShop Dzikra',
+    latitude: current.latitude ?? '',
+    longitude: current.longitude ?? '',
+    radius_m: current.radius_m || 100,
+    enforce: Boolean(current.enforce),
+  })
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState(null)
+
+  function set(k, v) {
+    setForm((f) => ({ ...f, [k]: v }))
+  }
+
+  async function useCurrentGps() {
+    setBusy(true)
+    setMsg(null)
+    try {
+      const pos = await getGeoPosition()
+      setForm((f) => ({
+        ...f,
+        latitude: Number(pos.latitude.toFixed(6)),
+        longitude: Number(pos.longitude.toFixed(6)),
+      }))
+      setMsg({ type: 'ok', text: 'Koordinat GPS berhasil diambil. Klik Simpan untuk menyimpan.' })
+    } catch (e) {
+      setMsg({ type: 'err', text: e.message })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  function save(e) {
+    e.preventDefault()
+    const res = saveAttendanceSettings(form, actor)
+    if (res.ok) {
+      setMsg({ type: 'ok', text: res.message })
+      onSaved?.()
+    } else {
+      setMsg({ type: 'err', text: res.message })
+    }
+  }
+
+  function clearCoords() {
+    setForm((f) => ({ ...f, latitude: '', longitude: '', enforce: false }))
+  }
+
+  return (
+    <div className="card att-settings-card" style={{ marginBottom: 16 }}>
+      <div className="card-header">
+        <span><i className="bi bi-geo-alt"></i> Setting Lokasi Absensi</span>
+      </div>
+      <div className="card-body">
+        <p style={{ margin: '0 0 12px', fontSize: 13, color: '#666' }}>
+          Atur titik koordinat toko. Jika &quot;Wajib di dalam radius&quot; aktif, pegawai hanya bisa absen di sekitar lokasi ini.
+        </p>
+        {msg && (
+          <div className={`scan-feedback ${msg.type === 'ok' ? 'ok' : 'err'}`} style={{ marginBottom: 10 }}>
+            {msg.text}
+          </div>
+        )}
+        <form onSubmit={save}>
+          <div className="form-group">
+            <label className="form-label">Nama lokasi</label>
+            <input
+              type="text"
+              className="form-control"
+              value={form.label}
+              onChange={(e) => set('label', e.target.value)}
+              placeholder="PetShop Dzikra"
+            />
+          </div>
+          <div className="form-row">
+            <div className="form-group">
+              <label className="form-label">Latitude</label>
+              <input
+                type="number"
+                step="any"
+                className="form-control"
+                value={form.latitude}
+                onChange={(e) => set('latitude', e.target.value)}
+                placeholder="-6.200000"
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Longitude</label>
+              <input
+                type="number"
+                step="any"
+                className="form-control"
+                value={form.longitude}
+                onChange={(e) => set('longitude', e.target.value)}
+                placeholder="106.816666"
+              />
+            </div>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Radius absen (meter)</label>
+            <input
+              type="number"
+              className="form-control"
+              min={10}
+              max={5000}
+              value={form.radius_m}
+              onChange={(e) => set('radius_m', e.target.value)}
+            />
+            <small style={{ color: '#888', fontSize: 12 }}>Contoh: 50–150 m untuk area toko</small>
+          </div>
+          <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input
+              type="checkbox"
+              id="attEnforce"
+              checked={form.enforce}
+              onChange={(e) => set('enforce', e.target.checked)}
+              disabled={form.latitude === '' || form.longitude === ''}
+            />
+            <label htmlFor="attEnforce" style={{ margin: 0 }}>
+              Wajib di dalam radius (tolak absen jika di luar area)
+            </label>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <button type="button" className="btn btn-outline btn-sm" onClick={useCurrentGps} disabled={busy}>
+              <i className="bi bi-crosshair"></i> {busy ? 'Mengambil...' : 'Pakai GPS saat ini'}
+            </button>
+            <button type="button" className="btn btn-outline btn-sm" onClick={clearCoords}>
+              Hapus koordinat
+            </button>
+            <button type="submit" className="btn btn-primary btn-sm">
+              <i className="bi bi-check-lg"></i> Simpan lokasi
+            </button>
+            {form.latitude !== '' && form.longitude !== '' && (
+              <a
+                className="btn btn-outline btn-sm"
+                href={mapsLink(form.latitude, form.longitude)}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <i className="bi bi-map"></i> Lihat Maps
+              </a>
+            )}
+          </div>
+        </form>
+        {current.latitude != null && (
+          <div className="att-settings-current">
+            Tersimpan: <strong>{current.label}</strong> · {Number(current.latitude).toFixed(5)}, {Number(current.longitude).toFixed(5)}
+            · radius {current.radius_m} m
+            · {current.enforce ? <span className="badge badge-success">Wajib radius</span> : <span className="badge badge-warning">Radius opsional</span>}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function Attendance() {
-  const { can } = useAuth()
+  const { user, can } = useAuth()
   const navigate = useNavigate()
   const shopCode = getAttendanceBarcode()
   const formUrl = useMemo(() => getAttendanceFormUrl(), [])
+  const [settingsKey, setSettingsKey] = useState(0)
+  const settings = useMemo(() => getAttendanceSettings(), [settingsKey])
   const [scanCode, setScanCode] = useState('')
   const [cameraOpen, setCameraOpen] = useState(false)
   const [feedback, setFeedback] = useState(null)
@@ -108,6 +288,16 @@ export default function Attendance() {
           <p style={{ margin: '6px 0 0', fontSize: 12, color: '#666' }}>
             Tempel QR ini di meja absensi. Scan dengan kamera HP akan membuka langsung form absen.
           </p>
+          {settings.latitude != null ? (
+            <p style={{ margin: '8px 0 0', fontSize: 12, color: '#0f766e' }}>
+              <i className="bi bi-geo-alt-fill"></i> Lokasi: {settings.label} · radius {settings.radius_m} m
+              {settings.enforce ? ' · wajib di area' : ''}
+            </p>
+          ) : (
+            <p style={{ margin: '8px 0 0', fontSize: 12, color: '#b45309' }}>
+              <i className="bi bi-exclamation-triangle"></i> Lokasi toko belum diatur
+            </p>
+          )}
           <button
             type="button"
             className="btn btn-outline btn-sm"
@@ -121,6 +311,10 @@ export default function Attendance() {
           </button>
         </div>
       </div>
+
+      {can('admin', 'owner') && (
+        <LocationSettings actor={user} onSaved={() => setSettingsKey((k) => k + 1)} />
+      )}
 
       <form className="scan-bar" onSubmit={submitScan}>
         <div className="scan-bar-icon"><i className="bi bi-upc-scan"></i></div>
