@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { unlockAttendanceSession } from '../utils/attendanceSession'
 
 const DEMOS = [
   { label: 'Admin (semua fitur)', email: 'admin@petshop.com', emoji: '👑' },
@@ -11,19 +12,29 @@ const DEMOS = [
 export default function Login() {
   const { user, signIn } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [showPass, setShowPass] = useState(false)
 
+  const redirectTo = location.state?.from || '/dashboard'
+
   useEffect(() => {
-    if (user) navigate('/dashboard', { replace: true })
-  }, [user, navigate])
+    if (user) goAfterLogin(redirectTo)
+  }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function goAfterLogin(target) {
+    if (String(target).includes('attendance/form')) {
+      unlockAttendanceSession()
+    }
+    navigate(target, { replace: true })
+  }
 
   function handleSubmit(e) {
     e.preventDefault()
     const res = signIn(email, password)
-    if (res.ok) navigate('/dashboard', { replace: true })
+    if (res.ok) goAfterLogin(redirectTo)
     else setError(res.message)
   }
 
@@ -32,7 +43,7 @@ export default function Login() {
     setPassword('password')
     setError('')
     const res = signIn(demoEmail, 'password')
-    if (res.ok) navigate('/dashboard', { replace: true })
+    if (res.ok) goAfterLogin(redirectTo)
     else setError(res.message)
   }
 

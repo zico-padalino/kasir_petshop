@@ -3,10 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import {
   ATTENDANCE_BARCODE,
   getAttendanceBarcode,
+  getAttendanceFormUrl,
   getAttendanceLogs,
   getAttendanceTodaySummary,
-  isAttendanceBarcode,
-  normalizeScanCode,
+  attendancePathFromScan,
 } from '../db/store'
 import { useAuth } from '../context/AuthContext'
 import { dateTimeShort, todayInput, monthStartInput } from '../utils/format'
@@ -38,6 +38,7 @@ export default function Attendance() {
   const { can } = useAuth()
   const navigate = useNavigate()
   const shopCode = getAttendanceBarcode()
+  const formUrl = useMemo(() => getAttendanceFormUrl(), [])
   const [scanCode, setScanCode] = useState('')
   const [cameraOpen, setCameraOpen] = useState(false)
   const [feedback, setFeedback] = useState(null)
@@ -55,7 +56,7 @@ export default function Attendance() {
 
   const today = useMemo(() => getAttendanceTodaySummary(), [reload])
   const logs = useMemo(() => getAttendanceLogs({ ...applied, limit: 150 }), [applied, reload])
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(shopCode)}`
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(formUrl)}`
 
   useEffect(() => {
     scanRef.current?.focus()
@@ -68,16 +69,17 @@ export default function Attendance() {
   }, [feedback])
 
   function goToForm(raw) {
-    const code = normalizeScanCode(raw)
+    const code = String(raw || '').trim()
     if (!code) return
-    if (!isAttendanceBarcode(code)) {
-      setFeedback({ type: 'err', text: `Barcode salah. Scan kode toko: ${ATTENDANCE_BARCODE}` })
+    const path = attendancePathFromScan(code)
+    if (!path) {
+      setFeedback({ type: 'err', text: `Barcode salah. Scan QR absensi atau kode: ${ATTENDANCE_BARCODE}` })
       return
     }
     beepOk()
     unlockAttendanceSession()
     setScanCode('')
-    navigate('/attendance/form')
+    navigate(path)
   }
 
   function submitScan(e) {
@@ -93,18 +95,30 @@ export default function Attendance() {
       </p>
 
       <div className="home-tip" style={{ marginTop: 0, marginBottom: 14 }}>
-        <strong>Cara:</strong> Scan / ketik <code>{shopCode}</code> → otomatis masuk ke form absensi
-        (pilih nama, selfie, GPS).
+        <strong>Cara:</strong> Scan QR di bawah dengan kamera HP → browser membuka halaman absensi.
+        Atau ketik kode <code>{shopCode}</code> di kolom scan.
       </div>
 
       <div className="att-shop-code">
-        <img src={qrUrl} alt={shopCode} width={140} height={140} />
+        <img src={qrUrl} alt="QR Absensi" width={160} height={160} />
         <div>
-          <div className="att-shop-label">Barcode Absensi Toko</div>
+          <div className="att-shop-label">QR Absensi (buka URL)</div>
           <div className="att-code">{shopCode}</div>
+          <p className="att-url-text">{formUrl}</p>
           <p style={{ margin: '6px 0 0', fontSize: 12, color: '#666' }}>
-            Satu kode untuk semua. Tempel di meja atau scan dari layar ini / kasir.
+            Tempel QR ini di meja absensi. Scan dengan kamera HP akan membuka langsung form absen.
           </p>
+          <button
+            type="button"
+            className="btn btn-outline btn-sm"
+            style={{ marginTop: 8 }}
+            onClick={() => {
+              navigator.clipboard?.writeText(formUrl)
+              setFeedback({ type: 'ok', text: 'URL absensi disalin.' })
+            }}
+          >
+            <i className="bi bi-clipboard"></i> Salin URL
+          </button>
         </div>
       </div>
 

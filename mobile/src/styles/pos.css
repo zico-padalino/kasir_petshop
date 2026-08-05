@@ -1590,6 +1590,14 @@ table.data-table tr:hover { background: #fafbfc; }
     text-transform: uppercase;
     letter-spacing: 0.04em;
 }
+.att-url-text {
+    margin: 6px 0 0;
+    font-size: 11px;
+    color: #0f766e;
+    word-break: break-all;
+    font-family: ui-monospace, monospace;
+    line-height: 1.35;
+}
 .att-form-card { margin-bottom: 8px; }
 .att-selfie-box {
     border: 1px dashed #ced4da;

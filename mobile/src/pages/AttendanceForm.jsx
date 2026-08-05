@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   clockAttendance,
   getAttendanceBarcode,
@@ -7,7 +7,7 @@ import {
   peekNextAttendanceType,
 } from '../db/store'
 import { useAuth } from '../context/AuthContext'
-import { isAttendanceUnlocked, clearAttendanceSession } from '../utils/attendanceSession'
+import { isAttendanceUnlocked, unlockAttendanceSession, clearAttendanceSession } from '../utils/attendanceSession'
 
 const ROLE_LABEL = { admin: 'Admin', kasir: 'Kasir', owner: 'Owner' }
 
@@ -155,6 +155,7 @@ function SelfieBox({ selfie, onCapture, onClear }) {
 export default function AttendanceForm() {
   const { user } = useAuth()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const shopCode = getAttendanceBarcode()
   const employees = useMemo(() => getUsers().filter((u) => u.is_active), [])
 
@@ -170,13 +171,18 @@ export default function AttendanceForm() {
   const nextType = useMemo(() => peekNextAttendanceType(employeeId), [employeeId])
 
   useEffect(() => {
-    if (!isAttendanceUnlocked()) {
+    const fromQr = searchParams.get('unlock') === '1'
+    if (fromQr) unlockAttendanceSession()
+    if (!isAttendanceUnlocked() && !fromQr) {
       navigate('/attendance', { replace: true })
       return
     }
+    if (fromQr) {
+      navigate('/attendance/form', { replace: true })
+    }
     setReady(true)
     refreshLocation()
-  }, [navigate])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!feedback) return

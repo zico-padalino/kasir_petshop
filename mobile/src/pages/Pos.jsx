@@ -11,6 +11,7 @@ import {
   transferHeldOrder,
   deleteHeldOrder,
   isAttendanceBarcode,
+  attendancePathFromScan,
 } from '../db/store'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
@@ -109,11 +110,11 @@ export default function Pos() {
   function handleScan(raw) {
     const code = String(raw || '').trim()
     if (!code) return
-    // barcode absensi toko → langsung ke halaman form absen
+    // barcode/QR absensi → buka halaman form absen (URL)
     if (isAttendanceBarcode(code)) {
       unlockAttendanceSession()
       setScanCode('')
-      navigate('/attendance/form')
+      navigate(attendancePathFromScan(code) || '/attendance/form?unlock=1')
       return
     }
     const res = findProductByScan(code)

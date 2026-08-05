@@ -1131,11 +1131,50 @@ export function getAttendanceBarcode() {
   return ATTENDANCE_BARCODE
 }
 
+/** URL absolut ke halaman form absensi (untuk QR yang bisa dibuka kamera HP) */
+export function getAttendanceFormUrl() {
+  if (typeof window === 'undefined') return '#/attendance/form?unlock=1'
+  const { origin, pathname } = window.location
+  const path = pathname && pathname !== '/' ? pathname.replace(/\/$/, '') : ''
+  return `${origin}${path || ''}/#/attendance/form?unlock=1`.replace(/([^:]\/)\/+/g, '$1')
+}
+
 export function isAttendanceBarcode(code) {
+  const raw = String(code || '').trim()
+  if (!raw) return false
+  const lower = raw.toLowerCase()
+  // QR berisi URL ke halaman absensi
+  if (
+    lower.includes('attendance/form') ||
+    lower.includes('unlock=1') ||
+    (lower.includes('attendance') && lower.includes('unlock'))
+  ) {
+    return true
+  }
   const variants = barcodeVariants(ATTENDANCE_BARCODE).map((v) => v.toUpperCase())
-  const q = normalizeScanCode(code).toUpperCase()
-  if (!q) return false
+  const q = normalizeScanCode(raw).toUpperCase()
   return variants.includes(q) || q === 'ABSENDZIKRA' || q.replace(/[^A-Z0-9]/g, '') === 'ABSENDZIKRA'
+}
+
+/** Ambil path in-app dari hasil scan (teks kode atau URL) */
+export function attendancePathFromScan(code) {
+  const raw = String(code || '').trim()
+  if (!isAttendanceBarcode(raw)) return null
+  if (/^https?:\/\//i.test(raw) || raw.includes('#/')) {
+    const hashIdx = raw.indexOf('#')
+    if (hashIdx >= 0) {
+      const hash = raw.slice(hashIdx + 1) // /attendance/form?unlock=1
+      return hash.startsWith('/') ? hash : `/${hash}`
+    }
+    try {
+      const u = new URL(raw)
+      if (u.hash) {
+        const h = u.hash.replace(/^#/, '')
+        return h.startsWith('/') ? h : `/${h}`
+      }
+    } catch { /* ignore */ }
+  }
+  return '/attendance/form?unlock=1'
 }
 
 function lastAttendanceToday(db, userId) {
