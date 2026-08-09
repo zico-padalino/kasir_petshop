@@ -19,7 +19,7 @@
     </style>
 </head>
 <body>
-    <div class="center bold" style="font-size:16px">🐾 PetShop Dzikra</div>
+    <div class="center bold" style="font-size:16px">🐾 pet Shop</div>
     <div class="center" style="font-size:11px;margin:4px 0">Jl. Pet Shop No. 1, Indonesia</div>
     <div class="center" style="font-size:11px">Telp: 0812-3456-7890</div>
     <div class="line"></div>

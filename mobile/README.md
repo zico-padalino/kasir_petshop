@@ -1,6 +1,6 @@
-# PetShop Dzikra E-POS — Versi Mobile (Netlify)
+# pet Shop E-POS — Versi Mobile (Netlify)
 
-Versi mobile (PWA) dari aplikasi kasir Laravel **Kasir Dzikra**. Dibuat ulang sebagai
+Versi mobile (PWA) dari aplikasi kasir Laravel **pet Shop**. Dibuat ulang sebagai
 aplikasi web statis (React + Vite) dengan UI/UX & struktur **identik** dengan versi Laravel.
 
 Cocok untuk **uji coba**: seluruh database disimpan **di perangkat** (browser `localStorage`),
@@ -88,7 +88,7 @@ Lalu buka https://app.netlify.com/drop dan seret folder `mobile/dist` ke sana
 
 - **Database di perangkat**: data (produk, transaksi, dll) tersimpan di `localStorage`
   browser masing-masing. Menghapus data browser = mereset ke data awal (seed).
-- Untuk **mereset data** ke kondisi awal, hapus key `kasir_dzikra_db_v1` di localStorage
+- Untuk **mereset data** ke kondisi awal, hapus key `pet_shop_db_v3` di localStorage
   (atau clear site data), lalu refresh.
 - Password disimpan apa adanya (plaintext) karena **hanya untuk uji coba lokal**.
   Jangan gunakan pola ini untuk produksi nyata.

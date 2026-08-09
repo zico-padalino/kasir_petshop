@@ -1,4 +1,4 @@
-# Cloudflare Tunnel untuk Laravel (PetShop E-POS)
+# Cloudflare Tunnel untuk Laravel (pet Shop E-POS)
 
 Panduan membuka aplikasi Laravel lokal ke internet tanpa port forwarding atau IP publik.
 
@@ -93,7 +93,7 @@ cloudflared tunnel login
 ### 2. Buat tunnel
 
 ```powershell
-cloudflared tunnel create kasir-dzikra
+cloudflared tunnel create pet-shop
 ```
 
 ### 3. Salin config
@@ -142,7 +142,7 @@ cloudflared di PC
   ↓ HTTP localhost
 Laravel 127.0.0.1:8900
   ↓
-MySQL lokal (kasirdzikra)
+MySQL lokal (petshop)
 ```
 
 Database tidak dibuka ke internet.

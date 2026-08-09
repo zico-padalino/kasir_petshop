@@ -3,7 +3,10 @@
 
 import { buildSeed } from './seed'
 
-const DB_KEY = 'kasir_dzikra_db_v3'
+const DB_KEY = 'pet_shop_db_v3'
+const DB_KEY_LEGACY = ['kasir_dzikra_db_v3', 'kasir_dzikra_db_v2']
+const ATT_SEED_KEY = 'pet_shop_att_seeded'
+const ATT_SEED_KEY_LEGACY = 'kasir_dzikra_att_seeded'
 
 export const BRAND_NAME = 'pet Shop'
 
@@ -35,12 +38,12 @@ function ensureSchema(db) {
   } else if (!db.attendance_logs.length) {
     // isi contoh sekali untuk DB lama yang belum punya data absensi
     try {
-      const flag = localStorage.getItem('kasir_dzikra_att_seeded')
+      const flag = localStorage.getItem(ATT_SEED_KEY) || localStorage.getItem(ATT_SEED_KEY_LEGACY)
       if (!flag) {
         const fresh = buildSeed()
         if (fresh.attendance_logs?.length) {
           db.attendance_logs = fresh.attendance_logs
-          localStorage.setItem('kasir_dzikra_att_seeded', '1')
+          localStorage.setItem(ATT_SEED_KEY, '1')
         }
       }
     } catch { /* ignore */ }
@@ -51,7 +54,7 @@ function ensureSchema(db) {
   }
   if (!db.attendance_settings || typeof db.attendance_settings !== 'object') {
     db.attendance_settings = {
-      label: 'PetShop Dzikra',
+      label: BRAND_NAME,
       latitude: null,
       longitude: null,
       radius_m: 100,
@@ -61,7 +64,9 @@ function ensureSchema(db) {
   } else {
     if (db.attendance_settings.radius_m == null) db.attendance_settings.radius_m = 100
     if (typeof db.attendance_settings.enforce !== 'boolean') db.attendance_settings.enforce = false
-    if (db.attendance_settings.label == null) db.attendance_settings.label = 'PetShop Dzikra'
+    if (db.attendance_settings.label == null || /dzikra/i.test(String(db.attendance_settings.label))) {
+      db.attendance_settings.label = BRAND_NAME
+    }
   }
   if (!db.shop_settings || typeof db.shop_settings !== 'object') {
     db.shop_settings = {
@@ -104,30 +109,17 @@ function ensureSchema(db) {
 }
 
 function load() {
-  const raw = localStorage.getItem(DB_KEY)
+  let raw = localStorage.getItem(DB_KEY)
   if (!raw) {
-    const old = localStorage.getItem('kasir_dzikra_db_v2')
-    if (old) {
-      try {
-        const migrated = ensureSchema(JSON.parse(old))
-        if (!migrated.hotel_bookings?.length) {
-          const fresh = buildSeed()
-          migrated.hotel_rooms = fresh.hotel_rooms
-          migrated.hotel_bookings = fresh.hotel_bookings
-        }
-        if (!migrated.stock_opnames?.length) {
-          const fresh = buildSeed()
-          migrated.stock_opnames = fresh.stock_opnames
-          migrated.stock_opname_items = fresh.stock_opname_items
-        }
-        if (!migrated.activity_logs?.length) {
-          const fresh = buildSeed()
-          migrated.activity_logs = fresh.activity_logs
-        }
-        localStorage.setItem(DB_KEY, JSON.stringify(migrated))
-        return migrated
-      } catch { /* fall through */ }
+    for (const legacyKey of DB_KEY_LEGACY) {
+      const legacy = localStorage.getItem(legacyKey)
+      if (legacy) {
+        raw = legacy
+        break
+      }
     }
+  }
+  if (!raw) {
     const fresh = buildSeed()
     localStorage.setItem(DB_KEY, JSON.stringify(fresh))
     return fresh
@@ -136,11 +128,13 @@ function load() {
     const parsed = JSON.parse(raw)
     const beforeName = parsed?.shop_settings?.shop_name
     const beforeReceipt = parsed?.shop_settings?.receipt_name
+    const beforeLabel = parsed?.attendance_settings?.label
     const db = ensureSchema(parsed)
-    if (
+    const nameChanged =
       db?.shop_settings?.shop_name !== beforeName ||
-      db?.shop_settings?.receipt_name !== beforeReceipt
-    ) {
+      db?.shop_settings?.receipt_name !== beforeReceipt ||
+      db?.attendance_settings?.label !== beforeLabel
+    if (nameChanged || !localStorage.getItem(DB_KEY)) {
       localStorage.setItem(DB_KEY, JSON.stringify(db))
     }
     return db
@@ -336,7 +330,7 @@ function todayStr() {
 /** Catat aktivitas ke log (dipakai internal sebelum save) */
 function currentActor() {
   try {
-    const raw = localStorage.getItem('kasir_dzikra_session')
+    const raw = localStorage.getItem('pet_shop_session') || localStorage.getItem('kasir_dzikra_session')
     return raw ? JSON.parse(raw) : null
   } catch {
     return null
@@ -1248,7 +1242,8 @@ export function deleteUser(id, currentUser) {
 /* ============ ABSENSI (1 barcode toko + pilih pegawai + selfie + lokasi) ============ */
 
 /** Barcode absensi tunggal untuk seluruh toko */
-export const ATTENDANCE_BARCODE = 'ABSEN-DZIKRA'
+export const ATTENDANCE_BARCODE = 'ABSEN-PETSHOP'
+const ATTENDANCE_BARCODE_LEGACY = 'ABSEN-DZIKRA'
 
 export function getAttendanceBarcode() {
   return ATTENDANCE_BARCODE
@@ -1274,9 +1269,13 @@ export function isAttendanceBarcode(code) {
   ) {
     return true
   }
-  const variants = barcodeVariants(ATTENDANCE_BARCODE).map((v) => v.toUpperCase())
+  const variants = [
+    ...barcodeVariants(ATTENDANCE_BARCODE),
+    ...barcodeVariants(ATTENDANCE_BARCODE_LEGACY),
+  ].map((v) => v.toUpperCase())
   const q = normalizeScanCode(raw).toUpperCase()
-  return variants.includes(q) || q === 'ABSENDZIKRA' || q.replace(/[^A-Z0-9]/g, '') === 'ABSENDZIKRA'
+  const compact = q.replace(/[^A-Z0-9]/g, '')
+  return variants.includes(q) || compact === 'ABSENPETSHOP' || compact === 'ABSENDZIKRA'
 }
 
 /** Ambil path in-app dari hasil scan (teks kode atau URL) */
@@ -1301,7 +1300,7 @@ export function attendancePathFromScan(code) {
 }
 
 const DEFAULT_ATT_SETTINGS = {
-  label: 'PetShop Dzikra',
+  label: BRAND_NAME,
   latitude: null,
   longitude: null,
   radius_m: 100,
@@ -1341,7 +1340,7 @@ export function saveAttendanceSettings(data, actor = null) {
   }
   const radius = Math.max(10, Math.min(5000, Number(data.radius_m) || 100))
   db.attendance_settings = {
-    label: String(data.label || 'PetShop Dzikra').trim() || 'PetShop Dzikra',
+    label: normalizeBrandName(data.label, BRAND_NAME),
     latitude: lat,
     longitude: lng,
     radius_m: radius,

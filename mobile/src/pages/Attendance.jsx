@@ -59,7 +59,7 @@ function getGeoPosition() {
 function LocationSettings({ actor, onSaved }) {
   const current = getAttendanceSettings()
   const [form, setForm] = useState({
-    label: current.label || 'PetShop Dzikra',
+    label: current.label || 'pet Shop',
     latitude: current.latitude ?? '',
     longitude: current.longitude ?? '',
     radius_m: current.radius_m || 100,
@@ -127,7 +127,7 @@ function LocationSettings({ actor, onSaved }) {
               className="form-control"
               value={form.label}
               onChange={(e) => set('label', e.target.value)}
-              placeholder="PetShop Dzikra"
+              placeholder="pet Shop"
             />
           </div>
           <div className="form-row">

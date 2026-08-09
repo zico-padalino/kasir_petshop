@@ -1,7 +1,7 @@
 {
-  "name": "PetShop Dzikra E-POS",
-  "short_name": "Kasir Dzikra",
-  "description": "Sistem Kasir PetShop Dzikra - versi mobile",
+  "name": "pet Shop E-POS",
+  "short_name": "pet Shop",
+  "description": "Sistem Kasir pet Shop - versi mobile",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

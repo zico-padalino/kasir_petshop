@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - PetShop E-POS</title>
+    <title>Login - pet Shop E-POS</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="{{ asset('css/pos.css') }}">
 </head>
@@ -12,7 +12,7 @@
         <div class="login-card">
             <div class="login-logo">
                 <div class="logo">🐾</div>
-                <h2>PetShop E-POS</h2>
+                <h2>pet Shop E-POS</h2>
                 <p>Sistem Kasir Pet Shop</p>
             </div>
 

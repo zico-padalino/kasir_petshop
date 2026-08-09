@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>@yield('title', 'Dashboard') - PetShop E-POS</title>
+    <title>@yield('title', 'Dashboard') - pet Shop E-POS</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="{{ asset('css/pos.css') }}">
     @stack('styles')
@@ -19,7 +19,7 @@
     <aside class="sidebar" id="sidebar">
         <div class="sidebar-brand">
             <div class="logo">🐾</div>
-            <div class="brand-text">PetShop<br>E-POS</div>
+            <div class="brand-text">pet Shop<br>E-POS</div>
             <button type="button" class="btn-sidebar-close" id="sidebarClose" title="Sembunyikan menu" aria-label="Sembunyikan menu">
                 <i class="bi bi-chevron-left"></i>
             </button>
@@ -77,7 +77,7 @@
             </div>
             <div class="topbar-right">
                 <div class="topbar-info">
-                    <strong>PetShop Dzikra</strong>
+                    <strong>pet Shop</strong>
                     Sistem Kasir Elektronik
                 </div>
                 <div class="badge-role">
@@ -128,13 +128,13 @@
         </main>
 
         <footer class="footer">
-            &copy; {{ date('Y') }} PetShop E-POS — Dibuat dengan Laravel
+            &copy; {{ date('Y') }} pet Shop E-POS — Dibuat dengan Laravel
         </footer>
     </div>
 
     <script>
         (function () {
-            const KEY = 'kasir_dzikra_sidebar_collapsed';
+            const KEY = 'pet_shop_sidebar_collapsed';
             const sidebar = document.getElementById('sidebar');
             const main = document.getElementById('mainWrapper');
             const toggleBtn = document.getElementById('sidebarToggle');

@@ -43,7 +43,8 @@ const BOTTOM = [
   { to: '/products', icon: 'bi-box-seam', label: 'Stok', roles: ['admin', 'owner'] },
 ]
 
-const SIDEBAR_KEY = 'kasir_dzikra_sidebar_collapsed'
+const SIDEBAR_KEY = 'pet_shop_sidebar_collapsed'
+const SIDEBAR_KEY_LEGACY = 'kasir_dzikra_sidebar_collapsed'
 
 function isMobileLayout() {
   return typeof window !== 'undefined' && window.matchMedia('(max-width: 992px)').matches
@@ -55,7 +56,7 @@ export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {
-      return localStorage.getItem(SIDEBAR_KEY) === '1'
+      return localStorage.getItem(SIDEBAR_KEY) === '1' || localStorage.getItem(SIDEBAR_KEY_LEGACY) === '1'
     } catch {
       return false
     }

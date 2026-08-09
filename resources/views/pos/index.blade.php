@@ -190,7 +190,7 @@
 <script>
 let cart = [];
 let lastTransactionId = null;
-const HELD_KEY = 'kasir_dzikra_held_orders';
+const HELD_KEY = 'pet_shop_held_orders';
 
 function loadHeld() {
     try { return JSON.parse(sessionStorage.getItem(HELD_KEY) || '[]'); }
