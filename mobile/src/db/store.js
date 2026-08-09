@@ -5,6 +5,14 @@ import { buildSeed } from './seed'
 
 const DB_KEY = 'kasir_dzikra_db_v3'
 
+export const BRAND_NAME = 'pet Shop'
+
+function normalizeBrandName(value, fallback = BRAND_NAME) {
+  const text = String(value || '').trim()
+  if (!text || /dzikra/i.test(text)) return fallback
+  return text
+}
+
 function ensureSchema(db) {
   if (!db.hotel_rooms || !db.hotel_bookings) {
     const fresh = buildSeed()
@@ -68,14 +76,11 @@ function ensureSchema(db) {
       updated_at: null,
     }
   } else {
-    const name = String(db.shop_settings.shop_name || '')
-    const receipt = String(db.shop_settings.receipt_name || '')
-    if (!name.trim() || /dzikra/i.test(name)) {
-      db.shop_settings.shop_name = 'pet Shop'
-    }
-    if (!receipt.trim() || /dzikra/i.test(receipt)) {
-      db.shop_settings.receipt_name = db.shop_settings.shop_name
-    }
+    db.shop_settings.shop_name = normalizeBrandName(db.shop_settings.shop_name)
+    db.shop_settings.receipt_name = normalizeBrandName(
+      db.shop_settings.receipt_name,
+      db.shop_settings.shop_name
+    )
     if (db.shop_settings.logo === undefined) db.shop_settings.logo = null
   }
   // pastikan tiap produk punya barcode (untuk scan kasir)
@@ -388,8 +393,8 @@ export function getActivityLogs({ module = '', search = '', dateFrom = '', dateT
 /* ============ TOKO / STRUK ============ */
 
 const DEFAULT_SHOP_SETTINGS = {
-  shop_name: 'pet Shop',
-  receipt_name: 'pet Shop',
+  shop_name: BRAND_NAME,
+  receipt_name: BRAND_NAME,
   tagline: 'Toko & penitipan hewan',
   address: 'Jl. Pet Shop No. 1, Indonesia',
   phone: '0812-3456-7890',
@@ -401,7 +406,14 @@ const DEFAULT_SHOP_SETTINGS = {
 
 export function getShopSettings() {
   const db = load()
-  return { ...DEFAULT_SHOP_SETTINGS, ...(db.shop_settings || {}) }
+  const merged = { ...DEFAULT_SHOP_SETTINGS, ...(db.shop_settings || {}) }
+  const shop_name = normalizeBrandName(merged.shop_name)
+  const receipt_name = normalizeBrandName(merged.receipt_name, shop_name)
+  if (merged.shop_name !== shop_name || merged.receipt_name !== receipt_name) {
+    db.shop_settings = { ...merged, shop_name, receipt_name }
+    save(db)
+  }
+  return { ...merged, shop_name, receipt_name }
 }
 
 export function saveShopSettings(data, actor = null) {

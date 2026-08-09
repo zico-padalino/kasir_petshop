@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { unlockAttendanceSession } from '../utils/attendanceSession'
-import { getShopSettings } from '../db/store'
+import { getShopSettings, BRAND_NAME } from '../db/store'
 
 const DEMOS = [
   { label: 'Admin (semua fitur)', email: 'admin@petshop.com', emoji: '👑' },
@@ -56,7 +56,7 @@ export default function Login() {
           <div className="logo">
             {shop.logo ? <img src={shop.logo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : '🐾'}
           </div>
-          <h2>pet Shop</h2>
+          <h2>{BRAND_NAME}</h2>
           <p>{shop.tagline || 'Kasir & penitipan hewan — mudah dipakai'}</p>
         </div>
 
