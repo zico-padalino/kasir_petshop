@@ -68,10 +68,12 @@ function ensureSchema(db) {
       updated_at: null,
     }
   } else {
-    if (!db.shop_settings.shop_name || db.shop_settings.shop_name === 'PetShop Dzikra') {
+    const name = String(db.shop_settings.shop_name || '')
+    const receipt = String(db.shop_settings.receipt_name || '')
+    if (!name.trim() || /dzikra/i.test(name)) {
       db.shop_settings.shop_name = 'pet Shop'
     }
-    if (!db.shop_settings.receipt_name || db.shop_settings.receipt_name === 'PetShop Dzikra') {
+    if (!receipt.trim() || /dzikra/i.test(receipt)) {
       db.shop_settings.receipt_name = db.shop_settings.shop_name
     }
     if (db.shop_settings.logo === undefined) db.shop_settings.logo = null
@@ -126,7 +128,17 @@ function load() {
     return fresh
   }
   try {
-    return ensureSchema(JSON.parse(raw))
+    const parsed = JSON.parse(raw)
+    const beforeName = parsed?.shop_settings?.shop_name
+    const beforeReceipt = parsed?.shop_settings?.receipt_name
+    const db = ensureSchema(parsed)
+    if (
+      db?.shop_settings?.shop_name !== beforeName ||
+      db?.shop_settings?.receipt_name !== beforeReceipt
+    ) {
+      localStorage.setItem(DB_KEY, JSON.stringify(db))
+    }
+    return db
   } catch {
     const fresh = buildSeed()
     localStorage.setItem(DB_KEY, JSON.stringify(fresh))

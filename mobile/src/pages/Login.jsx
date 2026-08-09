@@ -56,7 +56,7 @@ export default function Login() {
           <div className="logo">
             {shop.logo ? <img src={shop.logo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : '🐾'}
           </div>
-          <h2>{shop.shop_name}</h2>
+          <h2>pet Shop</h2>
           <p>{shop.tagline || 'Kasir & penitipan hewan — mudah dipakai'}</p>
         </div>
 
