@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
-import { getShopSettings } from '../db/store'
+import { getShopSettings, BRAND_NAME } from '../db/store'
 
 const MENU = [
   { group: 'Utama', items: [{ to: '/dashboard', icon: 'bi-house-door', label: 'Beranda', roles: ['admin', 'kasir', 'owner'] }] },
@@ -61,6 +61,7 @@ export default function Layout() {
     }
   })
   const navigate = useNavigate()
+  const location = useLocation()
 
   function handleLogout() {
     signOut()
@@ -86,10 +87,14 @@ export default function Layout() {
   }
 
   const bottomItems = BOTTOM.filter((i) => can(...i.roles)).slice(0, 5)
+  // Baca ulang saat pindah halaman (mis. setelah ubah Toko & Struk)
   const shop = getShopSettings()
-  const brandLines = (shop.shop_name || 'pet Shop').split(/\s+/)
-  const brandLine1 = brandLines[0] || 'pet'
-  const brandLine2 = brandLines.slice(1).join(' ') || 'Shop'
+  void location.pathname
+  const rawName = String(shop.shop_name || BRAND_NAME).trim()
+  const shopName = /dzikra/i.test(rawName) ? BRAND_NAME : (rawName || BRAND_NAME)
+  const brandLines = shopName.split(/\s+/).filter(Boolean)
+  const brandLine1 = brandLines[0] || BRAND_NAME
+  const brandLine2 = brandLines.slice(1).join(' ')
 
   return (
     <>
@@ -148,7 +153,7 @@ export default function Layout() {
           </div>
           <div className="topbar-right">
             <div className="topbar-info">
-              <strong>{shop.shop_name}</strong>
+              <strong>{shopName}</strong>
               {shop.tagline || 'Toko & penitipan hewan'}
             </div>
             <div className="badge-role">
@@ -184,7 +189,7 @@ export default function Layout() {
         </main>
 
         <footer className="footer">
-          &copy; {new Date().getFullYear()} {shop.shop_name} — {shop.tagline || 'Mudah dipakai untuk toko hewan'}
+          &copy; {new Date().getFullYear()} {shopName} — {shop.tagline || 'Mudah dipakai untuk toko hewan'}
         </footer>
       </div>
 

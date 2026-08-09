@@ -418,9 +418,9 @@ export function getShopSettings() {
 
 export function saveShopSettings(data, actor = null) {
   const db = load()
-  const shop_name = String(data.shop_name || '').trim()
-  if (!shop_name) return { ok: false, message: 'Nama toko wajib diisi.' }
-  const receipt_name = String(data.receipt_name || shop_name).trim() || shop_name
+  const shop_name = normalizeBrandName(data.shop_name)
+  if (!String(data.shop_name || '').trim()) return { ok: false, message: 'Nama toko wajib diisi.' }
+  const receipt_name = normalizeBrandName(data.receipt_name, shop_name)
   let logo = data.logo === undefined ? (db.shop_settings?.logo ?? null) : data.logo
   if (logo === '') logo = null
   // batasi ukuran logo base64 (~400 KB teks)

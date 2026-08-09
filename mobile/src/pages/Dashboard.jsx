@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { getDashboardStats, getShopSettings } from '../db/store'
+import { getDashboardStats, getShopSettings, BRAND_NAME } from '../db/store'
 import { useAuth } from '../context/AuthContext'
 import { rupiah, dateTimeShort } from '../utils/format'
 
@@ -115,6 +115,7 @@ export default function Dashboard() {
   const { user, can } = useAuth()
   const { stats, lowStock, recentTransactions } = useMemo(() => getDashboardStats(), [])
   const shop = getShopSettings()
+  const shopName = /dzikra/i.test(shop.shop_name || '') ? BRAND_NAME : (shop.shop_name || BRAND_NAME)
   const actions = ACTIONS.filter((a) => can(...a.roles))
   const hour = new Date().getHours()
   const greeting = hour < 11 ? 'Selamat pagi' : hour < 15 ? 'Selamat siang' : hour < 18 ? 'Selamat sore' : 'Selamat malam'
@@ -124,7 +125,7 @@ export default function Dashboard() {
       <div className="home-hero">
         <div className="home-hero-text">
           <p className="home-greet">{greeting}, {user?.name?.split(' ')[0] || 'Kak'} 👋</p>
-          <h1 className="home-title">{shop.shop_name}</h1>
+          <h1 className="home-title">{shopName}</h1>
           <p className="home-sub">{shop.tagline || 'Toko & penitipan hewan — pilih menu di bawah untuk mulai'}</p>
         </div>
         <div className="home-hero-paw">
