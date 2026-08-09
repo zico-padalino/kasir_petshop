@@ -84,8 +84,8 @@ const BASE = {
     updated_at: null,
   },
   shop_settings: {
-    shop_name: 'PetShop Dzikra',
-    receipt_name: 'PetShop Dzikra',
+    shop_name: 'pet Shop',
+    receipt_name: 'pet Shop',
     tagline: 'Toko & penitipan hewan',
     address: 'Jl. Pet Shop No. 1, Indonesia',
     phone: '0812-3456-7890',

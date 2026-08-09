@@ -57,8 +57,8 @@ function ensureSchema(db) {
   }
   if (!db.shop_settings || typeof db.shop_settings !== 'object') {
     db.shop_settings = {
-      shop_name: 'PetShop Dzikra',
-      receipt_name: 'PetShop Dzikra',
+      shop_name: 'pet Shop',
+      receipt_name: 'pet Shop',
       tagline: 'Toko & penitipan hewan',
       address: 'Jl. Pet Shop No. 1, Indonesia',
       phone: '0812-3456-7890',
@@ -68,8 +68,12 @@ function ensureSchema(db) {
       updated_at: null,
     }
   } else {
-    if (!db.shop_settings.shop_name) db.shop_settings.shop_name = 'PetShop Dzikra'
-    if (!db.shop_settings.receipt_name) db.shop_settings.receipt_name = db.shop_settings.shop_name
+    if (!db.shop_settings.shop_name || db.shop_settings.shop_name === 'PetShop Dzikra') {
+      db.shop_settings.shop_name = 'pet Shop'
+    }
+    if (!db.shop_settings.receipt_name || db.shop_settings.receipt_name === 'PetShop Dzikra') {
+      db.shop_settings.receipt_name = db.shop_settings.shop_name
+    }
     if (db.shop_settings.logo === undefined) db.shop_settings.logo = null
   }
   // pastikan tiap produk punya barcode (untuk scan kasir)
@@ -372,8 +376,8 @@ export function getActivityLogs({ module = '', search = '', dateFrom = '', dateT
 /* ============ TOKO / STRUK ============ */
 
 const DEFAULT_SHOP_SETTINGS = {
-  shop_name: 'PetShop Dzikra',
-  receipt_name: 'PetShop Dzikra',
+  shop_name: 'pet Shop',
+  receipt_name: 'pet Shop',
   tagline: 'Toko & penitipan hewan',
   address: 'Jl. Pet Shop No. 1, Indonesia',
   phone: '0812-3456-7890',

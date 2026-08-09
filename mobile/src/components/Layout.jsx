@@ -87,9 +87,9 @@ export default function Layout() {
 
   const bottomItems = BOTTOM.filter((i) => can(...i.roles)).slice(0, 5)
   const shop = getShopSettings()
-  const brandLines = (shop.shop_name || 'PetShop Dzikra').split(/\s+/)
-  const brandLine1 = brandLines[0] || 'PetShop'
-  const brandLine2 = brandLines.slice(1).join(' ') || 'Dzikra'
+  const brandLines = (shop.shop_name || 'pet Shop').split(/\s+/)
+  const brandLine1 = brandLines[0] || 'pet'
+  const brandLine2 = brandLines.slice(1).join(' ') || 'Shop'
 
   return (
     <>

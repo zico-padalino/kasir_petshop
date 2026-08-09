@@ -98,7 +98,7 @@ export default function ShopSettings() {
                   className="form-control"
                   value={form.shop_name}
                   onChange={(e) => set('shop_name', e.target.value)}
-                  placeholder="PetShop Dzikra"
+                  placeholder="pet Shop"
                   required
                 />
                 <small style={{ color: '#888', fontSize: 12 }}>Tampil di menu, beranda, dan login</small>
@@ -111,7 +111,7 @@ export default function ShopSettings() {
                   className="form-control"
                   value={form.receipt_name}
                   onChange={(e) => set('receipt_name', e.target.value)}
-                  placeholder="PetShop Dzikra"
+                  placeholder="pet Shop"
                   required
                 />
                 <small style={{ color: '#888', fontSize: 12 }}>Judul di bagian atas struk cetak</small>
